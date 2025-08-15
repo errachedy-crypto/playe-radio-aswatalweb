@@ -13,7 +13,7 @@ import urllib.request
 from packaging import version
 import webbrowser
 # --- Configuration ---
-CURRENT_VERSION = "1.3"
+CURRENT_VERSION = "1.4"
 # URL to a simple JSON file on your GitHub repo containing the latest version info
 # Example content for version.json: {"latest_version": "1.1", "download_url": "https://github.com/user/repo/releases/latest"}
 UPDATE_URL = "https://raw.githubusercontent.com/errachedy-crypto/playe-radio-aswatalweb/main/version.json"
