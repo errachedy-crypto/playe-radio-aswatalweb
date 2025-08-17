@@ -13,26 +13,21 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QRadioButton, QButtonGroup)
 from PyQt5.QtCore import Qt, QUrl, QTimer, QThread, pyqtSignal
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent, QMediaMetaData
+import vlc
+import logging
+import time
+
+os.environ["VLC_PLUGIN_PATH"] = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vlc", "plugins")
+
+logging.basicConfig(filename='radio_app.log', level=logging.DEBUG,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 # --- Configuration ---
-CURRENT_VERSION = "2.0"
+CURRENT_VERSION = "1.5"
 UPDATE_URL = "https://raw.githubusercontent.com/errachedy-crypto/playe-radio-aswatalweb/main/version.json"
 
-# Station data provided by the user
-STATIONS = [
-    ["إذاعة القرآن الكريم من نابلِس", "http://www.quran-radio.org:8002/;stream.mp3"],
-    ["إذاعة القرآن الكريم من القاهرة", "http://n0e.radiojar.com/8s5u5tpdtwzuv?rj-ttl=5&rj-tok=AAABeel-l8gApvlPoJcG2WWz8A"],
-    ["إذاعة القرآن الكريم من تونس", "http://5.135.194.225:8000/live"],
-    ["إذاعة الحرم المكي", "http://r7.tarat.com:8004/;"],
-    ["إذاعة دُبَيْ للقرآن الكريم", "http://uk5.internet-radio.com:8079/stream"],
-    ["إذاعة قناة المجد", "http://r1.tarat.com:8196/"],
-    ["تلاوات خاشعة", "http://live.mp3quran.net:9992/"],
-    ["إذاعة القُراء", "http://live.mp3quran.net:8006/"],
-    ["إذاعة القرآن الكريم من أستراليا", "http://listen.qkradio.com.au:8382/listen.mp3"],
-    ["إذاعة طيبة للقرآن الكريم من السودان", "http://live.mp3quran.net:9960/"],
-    ["إذاعة القرآن الكريم من فَلَسطين", "http://streamer.mada.ps:8029/quranfm"],
-    ["إذاعة سورة البقرة", "http://live.mp3quran.net:9722/"]
-]
+# Station data will be loaded from a URL
+STATIONS_URL = "https://aswatalweb.com/radio/radio.json"
 
 class UpdateChecker(QThread):
     update_available = pyqtSignal(str, str)
@@ -52,20 +47,23 @@ class UpdateChecker(QThread):
         except Exception:
             pass
 
-class FavoritesLoader(QThread):
-    favoritesLoaded = pyqtSignal(list)
-    def __init__(self, path):
-        super().__init__()
-        self.path = path
+class StationLoader(QThread):
+    stationsLoaded = pyqtSignal(list)
+    errorOccurred = pyqtSignal(str)
+
     def run(self):
-        if not os.path.exists(self.path):
-            return
         try:
-            with open(self.path, "r", encoding="utf-8") as f:
-                favorites = json.load(f)
-                self.favoritesLoaded.emit(favorites)
-        except (IOError, json.JSONDecodeError):
-            pass
+            response = requests.get(STATIONS_URL, timeout=10)
+            response.raise_for_status()
+            data = response.text
+            categories = json.loads(data).get("categories", [])
+            self.stationsLoaded.emit(categories)
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Failed to load stations from network: {e}")
+            self.errorOccurred.emit(f"ไม่สามารถ تحميل قائمة الإذاعات:\n{e}")
+        except json.JSONDecodeError:
+            logging.error("Failed to decode stations JSON.")
+            self.errorOccurred.emit("ملف الإذاعات غير صالح.")
 
 class SettingsDialog(QDialog):
     def __init__(self, settings, parent=None):
@@ -101,6 +99,11 @@ class SettingsDialog(QDialog):
         theme_layout.addWidget(self.dark_theme_radio)
         self.layout.addLayout(theme_layout)
 
+        # --- Font Size Setting ---
+        self.font_size_checkbox = QCheckBox("استخدام خط كبير")
+        self.font_size_checkbox.setChecked(self.settings.get("large_font", False))
+        self.layout.addWidget(self.font_size_checkbox)
+
         self.buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel, Qt.Horizontal, self)
         self.layout.addWidget(self.buttons)
         self.buttons.accepted.connect(self.save_and_accept)
@@ -111,6 +114,7 @@ class SettingsDialog(QDialog):
         self.settings["check_for_updates"] = self.update_checkbox.isChecked()
         self.settings["play_on_startup"] = self.play_on_startup_checkbox.isChecked()
         self.settings["theme"] = "dark" if self.dark_theme_radio.isChecked() else "light"
+        self.settings["large_font"] = self.font_size_checkbox.isChecked()
         self.accept()
 
 class RadioWindow(QMainWindow):
@@ -119,9 +123,11 @@ class RadioWindow(QMainWindow):
         self.settings = self.load_settings()
         self.apply_theme() # Apply theme at startup
 
-        self.setWindowTitle(f"عالم المعرفة راديو v{CURRENT_VERSION}")
+        self.setWindowTitle(f"الراديو العربي STV v{CURRENT_VERSION}")
         self.setGeometry(100, 100, 400, 500)
         self.player = QMediaPlayer()
+        self.vlc_instance = vlc.Instance()
+        self.vlc_player = self.vlc_instance.media_player_new()
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
@@ -137,36 +143,23 @@ class RadioWindow(QMainWindow):
         """
         Run startup tasks that might block, after the main window is shown.
         """
-        self.load_favorites_in_background()
+        self.load_stations()
         self.check_for_updates()
         self.statusBar().showMessage("أهلاً بك في راديو عالم المعرفة", 2000)
         self.play_last_station_if_enabled()
 
     def setup_ui(self, main_layout):
-        search_label = QLabel("ابحث عن إذاعة:")
-        self.search_bar = QLineEdit()
-        self.search_bar.setPlaceholderText("اكتب هنا للبحث...")
-        main_layout.addWidget(search_label)
-        main_layout.addWidget(self.search_bar)
-
-        station_label = QLabel("قائمة الإذاعات:")
-        main_layout.addWidget(station_label)
-        self.station_list = QListWidget()
-        for name, url in STATIONS:
-            item = QListWidgetItem(name)
-            item.setData(Qt.UserRole, url)
-            self.station_list.addItem(item)
-        main_layout.addWidget(self.station_list)
+        self.tree_widget = QTreeWidget()
+        self.tree_widget.setHeaderHidden(True)
+        main_layout.addWidget(self.tree_widget)
 
         button_layout = QHBoxLayout()
         self.play_button = QPushButton("تشغيل")
+        self.play_button.setAccessibleName("تشغيل الإذاعة المحددة")
         self.stop_button = QPushButton("إيقاف")
-        self.add_fav_button = QPushButton("إضافة للمفضلة")
-        self.rem_fav_button = QPushButton("إزالة من المفضلة")
+        self.stop_button.setAccessibleName("إيقاف الإذاعة الحالية")
         button_layout.addWidget(self.play_button)
         button_layout.addWidget(self.stop_button)
-        button_layout.addWidget(self.add_fav_button)
-        button_layout.addWidget(self.rem_fav_button)
         main_layout.addLayout(button_layout)
 
         volume_layout = QHBoxLayout()
@@ -174,6 +167,7 @@ class RadioWindow(QMainWindow):
         self.volume_slider = QSlider(Qt.Horizontal)
         self.volume_slider.setRange(0, 100)
         self.volume_slider.setValue(75)
+        self.volume_slider.setAccessibleName("شريط تمرير مستوى الصوت")
         volume_layout.addWidget(volume_label)
         volume_layout.addWidget(self.volume_slider)
         main_layout.addLayout(volume_layout)
@@ -182,6 +176,58 @@ class RadioWindow(QMainWindow):
         self.now_playing_label.setAlignment(Qt.AlignCenter)
         main_layout.addWidget(self.now_playing_label)
         self.setStatusBar(QStatusBar(self))
+
+    def load_stations(self):
+        self.progress_dialog = QProgressDialog("جري التحميل ... يرجى الانتظار.", None, 0, 0, self)
+        self.progress_dialog.setCancelButton(None)
+        self.progress_dialog.setWindowModality(Qt.WindowModal)
+        self.progress_dialog.show()
+
+        self.station_loader = StationLoader()
+        self.station_loader.stationsLoaded.connect(self.on_stations_loaded)
+        self.station_loader.errorOccurred.connect(self.on_stations_load_error)
+        self.station_loader.start()
+
+    def on_stations_loaded(self, categories):
+        self.progress_dialog.close()
+        self.populate_stations(categories)
+
+    def on_stations_load_error(self, error_message):
+        self.progress_dialog.close()
+        QMessageBox.critical(self, "خطأ في تحميل الإذاعات", error_message)
+
+    def populate_stations(self, categories):
+        for category in categories:
+            parent = QTreeWidgetItem(self.tree_widget)
+            parent.setText(0, category["name"])
+            parent.setFlags(parent.flags() & ~Qt.ItemIsSelectable)
+            for station in category.get("stations", []):
+                child = QTreeWidgetItem(parent)
+                child.setText(0, station["name"])
+                child.setData(0, Qt.UserRole, station["url"])
+
+    def play_station(self, item=None, column=None):
+        if not item:
+            item = self.tree_widget.currentItem()
+
+        if not item or not item.data(0, Qt.UserRole):
+            QMessageBox.warning(self, "خطأ", "الرجاء تحديد إذاعة أولاً.")
+            return
+
+        station_name = item.text(0)
+        url_string = item.data(0, Qt.UserRole)
+
+        # Save the last played station
+        self.settings["last_station_name"] = station_name
+        self.save_settings()
+
+        if url_string.endswith(".m3u8"):
+            media = self.vlc_instance.media_new(url_string)
+            self.vlc_player.set_media(media)
+            self.vlc_player.play()
+        else:
+            self.player.setMedia(QMediaContent(QUrl(url_string)))
+            self.player.play()
 
     def setup_menu(self):
         menu_bar = self.menuBar()
@@ -196,6 +242,8 @@ class RadioWindow(QMainWindow):
         file_menu.addSeparator()
         exit_action = file_menu.addAction("خروج")
         exit_action.triggered.connect(self.close)
+
+        self.sections_menu = menu_bar.addMenu("الأقسام")
 
     def show_about_dialog(self):
         about_text = f"""
@@ -219,10 +267,7 @@ class RadioWindow(QMainWindow):
         self.play_button.clicked.connect(self.play_station)
         self.stop_button.clicked.connect(self.stop_station)
         self.volume_slider.valueChanged.connect(self.player.setVolume)
-        self.search_bar.textChanged.connect(self.filter_stations)
-        self.add_fav_button.clicked.connect(self.add_favorite)
-        self.rem_fav_button.clicked.connect(self.remove_favorite)
-        self.station_list.itemActivated.connect(self.play_station)
+        self.tree_widget.itemActivated.connect(self.play_station)
 
     def check_for_updates(self):
         if self.settings.get("check_for_updates", True):
@@ -242,13 +287,22 @@ class RadioWindow(QMainWindow):
     def handle_player_error(self, error):
         error_string = self.player.errorString()
         if error_string:
+            logging.error(f"Player error: {error_string}")
             QMessageBox.critical(self, "خطأ في التشغيل", f"حدث خطأ أثناء محاولة تشغيل الإذاعة:\n{error_string}")
         # Stop the player and reset the label
         self.stop_station()
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key_F2:
+        if event.key() == Qt.Key_Escape:
+            self.tree_widget.collapseAll()
+        elif event.key() == Qt.Key_F2:
             self.toggle_play_stop()
+        elif event.key() == Qt.Key_F3:
+            self.search_bar.setFocus()
+        elif event.key() == Qt.Key_F4:
+            self.volume_slider.setValue(self.volume_slider.value() - 5)
+        elif event.key() == Qt.Key_F5:
+            self.volume_slider.setValue(self.volume_slider.value() + 5)
         else:
             super().keyPressEvent(event)
 
@@ -279,6 +333,8 @@ class RadioWindow(QMainWindow):
 
     def stop_station(self):
         self.player.stop()
+        if hasattr(self, 'vlc_player'):
+            self.vlc_player.stop()
 
     def update_now_playing(self):
         if self.player.isMetaDataAvailable():
@@ -290,18 +346,6 @@ class RadioWindow(QMainWindow):
         for i in range(self.station_list.count()):
             item = self.station_list.item(i)
             item.setHidden(search_text not in item.text().lower())
-
-    def add_favorite(self):
-        item = self.station_list.currentItem()
-        if item and not item.text().startswith("★ "):
-            item.setText("★ " + item.text())
-            self.save_favorites()
-
-    def remove_favorite(self):
-        item = self.station_list.currentItem()
-        if item and item.text().startswith("★ "):
-            item.setText(item.text()[2:])
-            self.save_favorites()
 
     def get_favorites_path(self):
         return os.path.join(os.path.expanduser("~"), "alam_al_maarifa_radio_fav.json")
@@ -348,6 +392,13 @@ class RadioWindow(QMainWindow):
             return defaults
 
     def apply_theme(self):
+        font = self.font()
+        if self.settings.get("large_font", False):
+            font.setPointSize(14)
+        else:
+            font.setPointSize(10)
+        self.setFont(font)
+
         dark_stylesheet = """
             QWidget {
                 background-color: #2b2b2b;
@@ -383,25 +434,6 @@ class RadioWindow(QMainWindow):
         else:
             self.setStyleSheet("")
 
-    def save_favorites(self):
-        favorites = [self.station_list.item(i).text()[2:] for i in range(self.station_list.count()) if self.station_list.item(i).text().startswith("★ ")]
-        try:
-            with open(self.get_favorites_path(), "w", encoding="utf-8") as f:
-                json.dump(favorites, f, ensure_ascii=False, indent=4)
-        except IOError: pass
-
-    def load_favorites_in_background(self):
-        self.favorites_loader = FavoritesLoader(self.get_favorites_path())
-        self.favorites_loader.favoritesLoaded.connect(self.apply_loaded_favorites)
-        self.favorites_loader.start()
-
-    def apply_loaded_favorites(self, favorites):
-        for fav_name in favorites:
-            for i in range(self.station_list.count()):
-                item = self.station_list.item(i)
-                if item.text() == fav_name:
-                    item.setText("★ " + fav_name)
-                    break
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
