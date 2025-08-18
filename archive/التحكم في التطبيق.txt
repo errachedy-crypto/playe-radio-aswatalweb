@@ -1,0 +1,8 @@
+التحكم في التطبيق
+
+cd "C:\Users\J.P.M\Desktop\radio app"
+
+
+python radio_app.py
+
+pyinstaller --onefile --windowed radio_app.py

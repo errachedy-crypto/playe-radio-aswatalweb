@@ -1,0 +1,13 @@
+2025-08-17 14:23:15,867 - DEBUG - Starting new HTTPS connection (1): raw.githubusercontent.com:443
+2025-08-17 14:23:16,147 - DEBUG - https://raw.githubusercontent.com:443 "GET /errachedy-crypto/playe-radio-aswatalweb/main/version.json HTTP/1.1" 200 130
+2025-08-17 14:24:53,176 - DEBUG - Starting new HTTPS connection (1): raw.githubusercontent.com:443
+2025-08-17 14:24:53,315 - DEBUG - https://raw.githubusercontent.com:443 "GET /errachedy-crypto/playe-radio-aswatalweb/main/version.json HTTP/1.1" 200 130
+2025-08-17 15:08:55,016 - DEBUG - Starting new HTTPS connection (1): raw.githubusercontent.com:443
+2025-08-17 16:15:24,205 - DEBUG - Starting new HTTPS connection (1): aswatalweb.com:443
+2025-08-17 16:15:24,206 - DEBUG - Starting new HTTPS connection (1): raw.githubusercontent.com:443
+2025-08-17 16:15:24,365 - DEBUG - https://aswatalweb.com:443 "GET /radio/radio.json HTTP/1.1" 200 1397
+2025-08-17 16:15:24,378 - DEBUG - https://raw.githubusercontent.com:443 "GET /errachedy-crypto/playe-radio-aswatalweb/main/version.json HTTP/1.1" 200 130
+2025-08-17 16:17:35,500 - DEBUG - Starting new HTTPS connection (1): raw.githubusercontent.com:443
+2025-08-17 16:17:35,501 - DEBUG - Starting new HTTPS connection (1): aswatalweb.com:443
+2025-08-17 16:17:35,692 - DEBUG - https://aswatalweb.com:443 "GET /radio/radio.json HTTP/1.1" 200 1400
+2025-08-17 16:17:35,760 - DEBUG - https://raw.githubusercontent.com:443 "GET /errachedy-crypto/playe-radio-aswatalweb/main/version.json HTTP/1.1" 200 130
