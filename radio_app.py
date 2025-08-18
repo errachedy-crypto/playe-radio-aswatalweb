@@ -418,4 +418,3 @@ if __name__ == '__main__':
     window = RadioWindow()
     window.show()
     sys.exit(app.exec_())
-Today 00:31
