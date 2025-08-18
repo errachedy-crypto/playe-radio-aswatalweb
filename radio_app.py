@@ -17,10 +17,13 @@ import vlc
 import logging
 import time
 
-os.environ["VLC_PLUGIN_PATH"] = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vlc", "plugins")
-
 logging.basicConfig(filename='radio_app.log', level=logging.DEBUG,
                     format='%(asctime)s - %(levelname)s - %(message)s')
+
+vlc_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vlc")
+if os.path.exists(vlc_path):
+    vlc.Instance(f'--plugin-path={os.path.join(vlc_path, "plugins")}')
+    os.environ['VLC_SDK_PATH'] = vlc_path
 
 # --- Configuration ---
 CURRENT_VERSION = "1.5"
