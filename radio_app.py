@@ -13,6 +13,11 @@ from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 import logging
 from packaging import version  # إضافة هذا السطر
 
+try:
+    import vlc
+except ImportError:
+    vlc = None
+
 # إعدادات تسجيل الأخطاء
 logging.basicConfig(filename='radio_app.log', level=logging.DEBUG, 
                     format='%(asctime)s - %(levelname)s - %(message)s')
@@ -122,6 +127,7 @@ class RadioWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
+        self.initialize_vlc()
         self.settings = self.load_settings()  # Load settings here
         self.apply_theme()  # Apply theme at startup
 
@@ -141,6 +147,23 @@ class RadioWindow(QMainWindow):
         
         # Use a timer to defer loading and network tasks
         QTimer.singleShot(100, self.finish_setup)
+
+    def initialize_vlc(self):
+        self.vlc_instance = None
+        self.vlc_player = None
+        self.vlc_available = False
+        if vlc:
+            try:
+                # Attempt to create a VLC instance
+                self.vlc_instance = vlc.Instance()
+                self.vlc_player = self.vlc_instance.media_player_new()
+                self.vlc_available = True
+                logging.info("VLC player initialized successfully.")
+            except Exception as e:
+                logging.warning(f"Failed to initialize VLC: {e}. Falling back to QMediaPlayer.")
+                self.vlc_available = False
+        else:
+            logging.warning("python-vlc library not found. Falling back to QMediaPlayer.")
 
     def finish_setup(self):
         try:
@@ -204,16 +227,31 @@ class RadioWindow(QMainWindow):
         self.settings["last_station_name"] = station_name
         self.save_settings()
 
-        # Use QMediaPlayer for all audio files (mp3, m3u8, etc.)
-        media = QMediaContent(QUrl(url_string))
-        self.player.setMedia(media)
-        self.player.play()
+        self.stop_station() # Stop any playing stream first
+
+        if self.vlc_available:
+            logging.info(f"Playing with VLC: {url_string}")
+            media = self.vlc_instance.media_new(url_string)
+            self.vlc_player.set_media(media)
+            self.vlc_player.play()
+        else:
+            logging.info(f"Playing with QMediaPlayer: {url_string}")
+            # Use QMediaPlayer for all audio files (mp3, m3u8, etc.)
+            media = QMediaContent(QUrl(url_string))
+            self.player.setMedia(media)
+            self.player.play()
 
     def stop_station(self):
-        self.player.stop()
+        if self.vlc_available and self.vlc_player.is_playing():
+            self.vlc_player.stop()
+        if self.player.state() == QMediaPlayer.PlayingState:
+            self.player.stop()
 
     def adjust_volume(self):
-        self.player.setVolume(self.volume_slider.value())
+        volume = self.volume_slider.value()
+        self.player.setVolume(volume)
+        if self.vlc_available:
+            self.vlc_player.audio_set_volume(volume)
 
     def setup_ui(self, main_layout):
         self.tree_widget = QTreeWidget()
