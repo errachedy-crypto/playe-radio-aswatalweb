@@ -1,44 +1,38 @@
-# -*- coding: utf-8 -*-
-
 import sys
 import os
 import json
 import webbrowser
-import time
-from packaging import version
 import requests
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
-                             QHBoxLayout, QTreeWidget, QTreeWidgetItem, QPushButton, QSlider, 
-                             QLabel, QMessageBox, QLineEdit,
-                             QStatusBar, QDialog, QDialogButtonBox, QCheckBox,
-                             QRadioButton, QButtonGroup, QProgressDialog)
+                             QHBoxLayout, QTreeWidget, QTreeWidgetItem, QPushButton, 
+                             QSlider, QLabel, QMessageBox, QStatusBar, QDialog, 
+                             QDialogButtonBox, QCheckBox, QRadioButton, QButtonGroup, 
+                             QProgressDialog)
 from PyQt5.QtCore import Qt, QUrl, QTimer, QThread, pyqtSignal
-from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent, QMediaMetaData
-import vlc
+from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 import logging
+from packaging import version  # إضافة هذا السطر
 
+# إعدادات تسجيل الأخطاء
 logging.basicConfig(filename='radio_app.log', level=logging.DEBUG, 
                     format='%(asctime)s - %(levelname)s - %(message)s')
-
-vlc_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vlc")
-if os.path.exists(vlc_path):
-    os.add_dll_directory(vlc_path)
 
 # --- Configuration ---
 CURRENT_VERSION = "1.5"
 UPDATE_URL = "https://raw.githubusercontent.com/errachedy-crypto/playe-radio-aswatalweb/main/version.json"
-
-# Station data will be loaded from a URL
 STATIONS_URL = "https://aswatalweb.com/radio/radio.json"
 
 class UpdateChecker(QThread):
     update_available = pyqtSignal(str, str)
+
     def __init__(self, current_version, update_url):
         super().__init__()
         self.current_version = current_version
         self.update_url = update_url
+        
     def run(self):
         try:
+            logging.debug("Checking for updates...")
             response = requests.get(self.update_url, timeout=5)
             response.raise_for_status()
             data = response.json()
@@ -46,6 +40,7 @@ class UpdateChecker(QThread):
             download_url = data.get("download_url")
             if latest_version_str and download_url and version.parse(latest_version_str) > version.parse(self.current_version):
                 self.update_available.emit(latest_version_str, download_url)
+            logging.debug(f"Update check completed. Latest version: {latest_version_str}")
         except requests.exceptions.RequestException as e:
             logging.error(f"Failed to check for updates: {e}")
         except json.JSONDecodeError:
@@ -57,17 +52,19 @@ class StationLoader(QThread):
 
     def run(self):
         try:
+            logging.debug("Loading stations from URL...")
             response = requests.get(STATIONS_URL, timeout=10)
             response.raise_for_status()
             data = response.text
             categories = json.loads(data).get("categories", [])
+            logging.debug(f"Categories loaded: {categories}")
             self.stationsLoaded.emit(categories)
         except requests.exceptions.RequestException as e:
             logging.error(f"Failed to load stations from network: {e}")
-            self.errorOccurred.emit(f"ไม่สามารถ تحميل قائمة الإذاعات:\n{e}")
+            self.errorOccurred.emit(f"غير قادر على تحميل قائمة الإذاعات:\n{e}")
         except json.JSONDecodeError:
             logging.error("Failed to decode stations JSON.")
-            self.errorOccurred.emit("ملف الإذاعات غير صالح.")
+            self.errorOccurred.emit("فشل في قراءة بيانات الإذاعات.")
 
 class SettingsDialog(QDialog):
     def __init__(self, settings, parent=None):
@@ -124,33 +121,99 @@ class SettingsDialog(QDialog):
 class RadioWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.settings = self.load_settings()
-        self.apply_theme() # Apply theme at startup
+
+        self.settings = self.load_settings()  # Load settings here
+        self.apply_theme()  # Apply theme at startup
 
         self.setWindowTitle(f"الراديو العربي STV v{CURRENT_VERSION}")
         self.setGeometry(100, 100, 400, 500)
+
+        # Initialize QMediaPlayer for regular audio
         self.player = QMediaPlayer()
-        self.vlc_instance = vlc.Instance("--no-xlib")
-        self.vlc_player = self.vlc_instance.media_player_new()
+
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
+
         self.setup_ui(main_layout)
         self.setup_menu()
         self.connect_signals()
-        self.player.setVolume(self.volume_slider.value())
         
         # Use a timer to defer loading and network tasks
         QTimer.singleShot(100, self.finish_setup)
 
     def finish_setup(self):
-        """
-        Run startup tasks that might block, after the main window is shown.
-        """
-        self.load_stations()
-        self.check_for_updates()
-        self.statusBar().showMessage("أهلاً بك في الراديو العربي STV", 2000)
-        self.play_last_station_if_enabled()
+        try:
+            logging.debug("Starting setup tasks...")
+            self.load_stations()  # Ensure stations are loaded here
+            self.check_for_updates()
+            self.statusBar().showMessage("أهلاً بك في الراديو العربي STV", 2000)
+            self.play_last_station_if_enabled()  # Ensure this function is defined
+            logging.debug("Setup tasks completed successfully.")
+        except Exception as e:
+            logging.error(f"Error during setup: {e}")
+            QMessageBox.critical(self, "خطأ في التهيئة", f"حدث خطأ أثناء تهيئة التطبيق:\n{e}")
+
+    def load_settings(self):
+        # التأكد من تحميل الإعدادات بشكل صحيح
+        path = self.get_settings_path()
+        defaults = {
+            "check_for_updates": True,
+            "play_on_startup": False,
+            "theme": "light",
+            "large_font": False
+        }
+        if not os.path.exists(path):
+            return defaults
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                settings = json.load(f)
+            for key, value in defaults.items():
+                settings.setdefault(key, value)
+            return settings
+        except (IOError, json.JSONDecodeError):
+            return defaults
+
+    def play_last_station_if_enabled(self):
+        # هذه الدالة ستقوم بتشغيل آخر إذاعة تم الاستماع إليها إذا كانت الإعدادات مفعلة
+        if self.settings.get("play_on_startup", False):
+            last_station_name = self.settings.get("last_station_name")
+            if not last_station_name:
+                return
+
+            root = self.tree_widget.invisibleRootItem()
+            for i in range(root.childCount()):
+                category = root.child(i)
+                for j in range(category.childCount()):
+                    station = category.child(j)
+                    if station.text(0).strip() == last_station_name:
+                        self.tree_widget.setCurrentItem(station)
+                        self.play_station(station)  # Ensure play_station is called correctly
+                        return
+
+    def play_station(self, item=None, column=None):
+        if not item:
+            item = self.tree_widget.currentItem()
+
+        if not item or not item.data(0, Qt.UserRole):
+            return
+
+        station_name = item.text(0).strip()
+        url_string = item.data(0, Qt.UserRole)
+
+        self.settings["last_station_name"] = station_name
+        self.save_settings()
+
+        # Use QMediaPlayer for all audio files (mp3, m3u8, etc.)
+        media = QMediaContent(QUrl(url_string))
+        self.player.setMedia(media)
+        self.player.play()
+
+    def stop_station(self):
+        self.player.stop()
+
+    def adjust_volume(self):
+        self.player.setVolume(self.volume_slider.value())
 
     def setup_ui(self, main_layout):
         self.tree_widget = QTreeWidget()
@@ -159,9 +222,7 @@ class RadioWindow(QMainWindow):
 
         button_layout = QHBoxLayout()
         self.play_button = QPushButton("تشغيل")
-        self.play_button.setAccessibleName("تشغيل الإذاعة المحددة")
         self.stop_button = QPushButton("إيقاف")
-        self.stop_button.setAccessibleName("إيقاف الإذاعة الحالية")
         button_layout.addWidget(self.play_button)
         button_layout.addWidget(self.stop_button)
         main_layout.addLayout(button_layout)
@@ -171,7 +232,6 @@ class RadioWindow(QMainWindow):
         self.volume_slider = QSlider(Qt.Horizontal)
         self.volume_slider.setRange(0, 100)
         self.volume_slider.setValue(75)
-        self.volume_slider.setAccessibleName("شريط تمرير مستوى الصوت")
         volume_layout.addWidget(volume_label)
         volume_layout.addWidget(self.volume_slider)
         main_layout.addLayout(volume_layout)
@@ -179,10 +239,11 @@ class RadioWindow(QMainWindow):
         self.now_playing_label = QLabel("التشغيل الحالي: -")
         self.now_playing_label.setAlignment(Qt.AlignCenter)
         main_layout.addWidget(self.now_playing_label)
+
         self.setStatusBar(QStatusBar(self))
 
     def load_stations(self):
-        self.progress_dialog = QProgressDialog("جري التحميل ... يرجى الانتظار.", None, 0, 0, self)
+        self.progress_dialog = QProgressDialog("جاري التحميل ... يرجى الانتظار.", None, 0, 0, self)
         self.progress_dialog.setCancelButton(None)
         self.progress_dialog.setWindowModality(Qt.WindowModal)
         self.progress_dialog.show()
@@ -238,14 +299,12 @@ class RadioWindow(QMainWindow):
         if dialog.exec_():
             self.settings = dialog.settings
             self.save_settings()
-            self.apply_theme() # Apply theme immediately after settings change
+            self.apply_theme()
 
     def connect_signals(self):
-        self.player.metaDataChanged.connect(self.update_now_playing)
-        self.player.error.connect(self.handle_player_error)
         self.play_button.clicked.connect(self.play_station)
         self.stop_button.clicked.connect(self.stop_station)
-        self.volume_slider.valueChanged.connect(self.player.setVolume)
+        self.volume_slider.valueChanged.connect(self.adjust_volume)
         self.tree_widget.itemActivated.connect(self.play_station)
 
     def check_for_updates(self):
@@ -268,65 +327,7 @@ class RadioWindow(QMainWindow):
         if error_string:
             logging.error(f"Player error: {error_string}")
             QMessageBox.critical(self, "خطأ في التشغيل", f"حدث خطأ أثناء محاولة تشغيل الإذاعة:\n{error_string}")
-        # Stop the player and reset the label
         self.stop_station()
-
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Escape:
-            self.tree_widget.collapseAll()
-        elif event.key() == Qt.Key_F2:
-            self.toggle_play_stop()
-        elif event.key() == Qt.Key_F3:
-            # To be implemented: search functionality
-            pass
-        elif event.key() == Qt.Key_F4:
-            self.volume_slider.setValue(self.volume_slider.value() - 5)
-        elif event.key() == Qt.Key_F5:
-            self.volume_slider.setValue(self.volume_slider.value() + 5)
-        else:
-            super().keyPressEvent(event)
-
-    def toggle_play_stop(self):
-        if self.player.state() == QMediaPlayer.PlayingState or (hasattr(self, 'vlc_player') and self.vlc_player.is_playing()):
-            self.stop_station()
-        else:
-            self.play_station()
-
-    def play_station(self, item=None, column=None):
-        if not item:
-            item = self.tree_widget.currentItem()
-
-        if not item or not item.data(0, Qt.UserRole):
-            # This is a category header, not a station
-            return
-
-        station_name = item.text(0).strip()
-        url_string = item.data(0, Qt.UserRole)
-
-        # Save the last played station
-        self.settings["last_station_name"] = station_name
-        self.save_settings()
-        
-        if url_string.endswith(".m3u8"):
-            media = self.vlc_instance.media_new(url_string)
-            self.vlc_player.set_media(media)
-            self.vlc_player.play()
-        else:
-            self.player.setMedia(QMediaContent(QUrl(url_string)))
-            self.player.play()
-
-    def stop_station(self):
-        self.player.stop()
-        if hasattr(self, 'vlc_player'):
-            self.vlc_player.stop()
-
-    def update_now_playing(self):
-        if self.player.isMetaDataAvailable():
-            title = self.player.metaData(QMediaMetaData.Title)
-            self.now_playing_label.setText(f"التشغيل الحالي: {title or '-'}")
-
-    def get_settings_path(self):
-        return os.path.join(os.path.expanduser("~"), "stv_radio_settings.json")
 
     def save_settings(self):
         try:
@@ -335,40 +336,8 @@ class RadioWindow(QMainWindow):
         except IOError:
             pass
 
-    def play_last_station_if_enabled(self):
-        if self.settings.get("play_on_startup", False):
-            last_station_name = self.settings.get("last_station_name")
-            if not last_station_name:
-                return
-
-            root = self.tree_widget.invisibleRootItem()
-            for i in range(root.childCount()):
-                category = root.child(i)
-                for j in range(category.childCount()):
-                    station = category.child(j)
-                    if station.text(0).strip() == last_station_name:
-                        self.tree_widget.setCurrentItem(station)
-                        self.play_station(station)
-                        return
-
-    def load_settings(self):
-        path = self.get_settings_path()
-        defaults = {
-            "check_for_updates": True,
-            "play_on_startup": False,
-            "theme": "light",
-            "large_font": False
-        }
-        if not os.path.exists(path):
-            return defaults
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                settings = json.load(f)
-            for key, value in defaults.items():
-                settings.setdefault(key, value)
-            return settings
-        except (IOError, json.JSONDecodeError):
-            return defaults
+    def get_settings_path(self):
+        return os.path.join(os.path.expanduser("~"), "stv_radio_settings.json")
 
     def apply_theme(self):
         font = self.font()
