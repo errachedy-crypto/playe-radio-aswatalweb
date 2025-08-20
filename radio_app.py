@@ -148,6 +148,22 @@ class RadioWindow(QMainWindow):
         # Use a timer to defer loading and network tasks
         QTimer.singleShot(100, self.finish_setup)
 
+        # استدعاء الدالة لضبط مستوى الصوت الفعلي
+        self.adjust_volume()  # سيأخذ هذه القيمة (40%) ويطبقها على المشغل الصوتي
+
+    # --- إضافة الدالة المفقودة toggle_play_stop ---
+    def toggle_play_stop(self):
+        is_playing = (self.vlc_available and self.vlc_player.is_playing()) or \
+                     (self.player.state() == QMediaPlayer.PlayingState)
+        
+        if is_playing:
+            self.stop_station()
+        else:
+            # We need to get the current item from the tree to play it
+            current_item = self.tree_widget.currentItem()
+            if current_item and current_item.data(0, Qt.UserRole):
+                self.play_station(current_item)
+
     def initialize_vlc(self):
         self.vlc_instance = None
         self.vlc_player = None
@@ -227,7 +243,7 @@ class RadioWindow(QMainWindow):
         self.settings["last_station_name"] = station_name
         self.save_settings()
 
-        self.stop_station() # Stop any playing stream first
+        self.stop_station()  # Stop any playing stream first
 
         if self.vlc_available:
             logging.info(f"Playing with VLC: {url_string}")
@@ -236,16 +252,19 @@ class RadioWindow(QMainWindow):
             self.vlc_player.play()
         else:
             logging.info(f"Playing with QMediaPlayer: {url_string}")
-            # Use QMediaPlayer for all audio files (mp3, m3u8, etc.)
             media = QMediaContent(QUrl(url_string))
             self.player.setMedia(media)
             self.player.play()
+
+        self.play_stop_button.setText('إيقاف')  # تغيير النص إلى "إيقاف"
 
     def stop_station(self):
         if self.vlc_available and self.vlc_player.is_playing():
             self.vlc_player.stop()
         if self.player.state() == QMediaPlayer.PlayingState:
             self.player.stop()
+
+        self.play_stop_button.setText('تشغيل')  # تغيير النص إلى "تشغيل"
 
     def adjust_volume(self):
         volume = self.volume_slider.value()
@@ -258,18 +277,18 @@ class RadioWindow(QMainWindow):
         self.tree_widget.setHeaderHidden(True)
         main_layout.addWidget(self.tree_widget)
 
+        # حذف الأزرار القديمة "تشغيل" و "إيقاف" وإضافة زر واحد "تشغيل/إيقاف"
         button_layout = QHBoxLayout()
-        self.play_button = QPushButton("تشغيل")
-        self.stop_button = QPushButton("إيقاف")
-        button_layout.addWidget(self.play_button)
-        button_layout.addWidget(self.stop_button)
+        self.play_stop_button = QPushButton("تشغيل")  # النص الافتراضي عند إيقاف الراديو
+        button_layout.addWidget(self.play_stop_button)
         main_layout.addLayout(button_layout)
 
+        # إعداد مستوى الصوت الافتراضي عند فتح التطبيق (40%)
         volume_layout = QHBoxLayout()
         volume_label = QLabel("مستوى الصوت:")
         self.volume_slider = QSlider(Qt.Horizontal)
         self.volume_slider.setRange(0, 100)
-        self.volume_slider.setValue(75)
+        self.volume_slider.setValue(40)  # تعيين مستوى الصوت إلى 40%
         volume_layout.addWidget(volume_label)
         volume_layout.addWidget(self.volume_slider)
         main_layout.addLayout(volume_layout)
@@ -340,8 +359,7 @@ class RadioWindow(QMainWindow):
             self.apply_theme()
 
     def connect_signals(self):
-        self.play_button.clicked.connect(self.play_station)
-        self.stop_button.clicked.connect(self.stop_station)
+        self.play_stop_button.clicked.connect(self.toggle_play_stop)
         self.volume_slider.valueChanged.connect(self.adjust_volume)
         self.tree_widget.itemActivated.connect(self.play_station)
 
