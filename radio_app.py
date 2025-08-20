@@ -7,8 +7,9 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QTreeWidget, QTreeWidgetItem, QPushButton, 
                              QSlider, QLabel, QMessageBox, QStatusBar, QDialog, 
                              QDialogButtonBox, QCheckBox, QRadioButton, QButtonGroup, 
-                             QProgressDialog, QLineEdit)
+                             QProgressDialog, QLineEdit, QShortcut)
 from PyQt5.QtCore import Qt, QUrl, QTimer, QThread, pyqtSignal
+from PyQt5.QtGui import QKeySequence
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 import logging
 from packaging import version  # إضافة هذا السطر
@@ -150,6 +151,9 @@ class RadioWindow(QMainWindow):
 
         # استدعاء الدالة لضبط مستوى الصوت الفعلي
         self.adjust_volume()  # سيأخذ هذه القيمة (40%) ويطبقها على المشغل الصوتي
+
+        # ربط الاختصارات مع الدوال المناسبة
+        self.setup_shortcuts()
 
     # --- إضافة الدالة المفقودة toggle_play_stop ---
     def toggle_play_stop(self):
@@ -319,6 +323,58 @@ class RadioWindow(QMainWindow):
                     category_has_matches = True
             
             category.setHidden(not category_has_matches)
+
+    def setup_shortcuts(self):
+        # F3: Focus on the search box
+        shortcut_f3 = QShortcut(QKeySequence(Qt.Key_F3), self)
+        shortcut_f3.activated.connect(self.search_box.setFocus)
+
+        # F7: Lower volume
+        shortcut_f7 = QShortcut(QKeySequence(Qt.Key_F7), self)
+        shortcut_f7.activated.connect(self.lower_volume)
+
+        # F8: Raise volume
+        shortcut_f8 = QShortcut(QKeySequence(Qt.Key_F8), self)
+        shortcut_f8.activated.connect(self.raise_volume)
+
+        # F9: Mute/Unmute
+        shortcut_f9 = QShortcut(QKeySequence(Qt.Key_F9), self)
+        shortcut_f9.activated.connect(self.toggle_mute)
+
+        # F5: Restart the current station
+        shortcut_f5 = QShortcut(QKeySequence(Qt.Key_F5), self)
+        shortcut_f5.activated.connect(self.restart_station)
+
+        # F2: Play/Stop last played station
+        shortcut_f2 = QShortcut(QKeySequence(Qt.Key_F2), self)
+        shortcut_f2.activated.connect(self.toggle_play_last_station)
+
+    def lower_volume(self):
+        current_volume = self.volume_slider.value()
+        self.volume_slider.setValue(max(current_volume - 10, 0))
+        self.adjust_volume()  # هذا السطر مهم لتطبيق الصوت
+
+    def raise_volume(self):
+        current_volume = self.volume_slider.value()
+        self.volume_slider.setValue(min(current_volume + 10, 100))
+        self.adjust_volume()  # هذا السطر مهم لتطبيق الصوت
+
+    def toggle_mute(self):
+        # هذا الكود سيضمن كتم صوت كلا المشغلين
+        is_muted = self.player.isMuted()
+        self.player.setMuted(not is_muted)
+        if self.vlc_available:
+            self.vlc_player.audio_set_mute(not is_muted)
+
+    def restart_station(self):
+        current_item = self.tree_widget.currentItem()
+        if current_item:
+            self.play_station(current_item)
+
+    def toggle_play_last_station(self):
+        current_item = self.tree_widget.currentItem()
+        if current_item:
+            self.toggle_play_stop()
 
     def load_stations(self):
         self.progress_dialog = QProgressDialog("جاري التحميل ... يرجى الانتظار.", None, 0, 0, self)
