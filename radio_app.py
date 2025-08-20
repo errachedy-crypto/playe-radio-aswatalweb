@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QTreeWidget, QTreeWidgetItem, QPushButton, 
                              QSlider, QLabel, QMessageBox, QStatusBar, QDialog, 
                              QDialogButtonBox, QCheckBox, QRadioButton, QButtonGroup, 
-                             QProgressDialog)
+                             QProgressDialog, QLineEdit)
 from PyQt5.QtCore import Qt, QUrl, QTimer, QThread, pyqtSignal
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 import logging
@@ -277,6 +277,11 @@ class RadioWindow(QMainWindow):
         self.tree_widget.setHeaderHidden(True)
         main_layout.addWidget(self.tree_widget)
 
+        # إضافة خانة البحث
+        self.search_box = QLineEdit(self)
+        self.search_box.setPlaceholderText("ابحث عن إذاعة...")
+        main_layout.addWidget(self.search_box)
+
         # حذف الأزرار القديمة "تشغيل" و "إيقاف" وإضافة زر واحد "تشغيل/إيقاف"
         button_layout = QHBoxLayout()
         self.play_stop_button = QPushButton("تشغيل")  # النص الافتراضي عند إيقاف الراديو
@@ -298,6 +303,22 @@ class RadioWindow(QMainWindow):
         main_layout.addWidget(self.now_playing_label)
 
         self.setStatusBar(QStatusBar(self))
+
+    def filter_stations(self):
+        search_text = self.search_box.text().lower()
+        root = self.tree_widget.invisibleRootItem()
+
+        for i in range(root.childCount()):
+            category = root.child(i)
+            category_has_matches = False
+            for j in range(category.childCount()):
+                station = category.child(j)
+                station_matches = search_text in station.text(0).lower()
+                station.setHidden(not station_matches)
+                if station_matches:
+                    category_has_matches = True
+            
+            category.setHidden(not category_has_matches)
 
     def load_stations(self):
         self.progress_dialog = QProgressDialog("جاري التحميل ... يرجى الانتظار.", None, 0, 0, self)
@@ -362,6 +383,7 @@ class RadioWindow(QMainWindow):
         self.play_stop_button.clicked.connect(self.toggle_play_stop)
         self.volume_slider.valueChanged.connect(self.adjust_volume)
         self.tree_widget.itemActivated.connect(self.play_station)
+        self.search_box.textChanged.connect(self.filter_stations)  # ربط خانة البحث
 
     def check_for_updates(self):
         if self.settings.get("check_for_updates", True):
