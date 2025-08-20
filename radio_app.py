@@ -24,7 +24,7 @@ logging.basicConfig(filename='radio_app.log', level=logging.DEBUG,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
 # --- Configuration ---
-CURRENT_VERSION = "1.5"
+CURRENT_VERSION = "0.1"
 UPDATE_URL = "https://raw.githubusercontent.com/errachedy-crypto/playe-radio-aswatalweb/main/version.json"
 STATIONS_URL = "https://aswatalweb.com/radio/radio.json"
 
@@ -132,7 +132,7 @@ class RadioWindow(QMainWindow):
         self.settings = self.load_settings()  # Load settings here
         self.apply_theme()  # Apply theme at startup
 
-        self.setWindowTitle(f"الراديو العربي STV v{CURRENT_VERSION}")
+        self.setWindowTitle(f"Amwaj v{CURRENT_VERSION}")
         self.setGeometry(100, 100, 400, 500)
 
         # Initialize QMediaPlayer for regular audio
@@ -277,6 +277,7 @@ class RadioWindow(QMainWindow):
             self.vlc_player.audio_set_volume(volume)
 
     def setup_ui(self, main_layout):
+        # وضع العرض الشجري في الأعلى
         self.tree_widget = QTreeWidget()
         self.tree_widget.setHeaderHidden(True)
         main_layout.addWidget(self.tree_widget)
@@ -286,13 +287,13 @@ class RadioWindow(QMainWindow):
         self.search_box.setPlaceholderText("ابحث عن إذاعة...")
         main_layout.addWidget(self.search_box)
 
-        # حذف الأزرار القديمة "تشغيل" و "إيقاف" وإضافة زر واحد "تشغيل/إيقاف"
+        # زر تشغيل/إيقاف
         button_layout = QHBoxLayout()
         self.play_stop_button = QPushButton("تشغيل")  # النص الافتراضي عند إيقاف الراديو
         button_layout.addWidget(self.play_stop_button)
         main_layout.addLayout(button_layout)
 
-        # إعداد مستوى الصوت الافتراضي عند فتح التطبيق (40%)
+        # شريط مستوى الصوت
         volume_layout = QHBoxLayout()
         volume_label = QLabel("مستوى الصوت:")
         self.volume_slider = QSlider(Qt.Horizontal)
@@ -302,6 +303,12 @@ class RadioWindow(QMainWindow):
         volume_layout.addWidget(self.volume_slider)
         main_layout.addLayout(volume_layout)
 
+        # زر الإعدادات الرئيسية
+        settings_button = QPushButton("الإعدادات")
+        settings_button.clicked.connect(self.open_settings_dialog)
+        main_layout.addWidget(settings_button)
+
+        # مستوى الصوت الحالي
         self.now_playing_label = QLabel("التشغيل الحالي: -")
         self.now_playing_label.setAlignment(Qt.AlignCenter)
         main_layout.addWidget(self.now_playing_label)
@@ -421,10 +428,10 @@ class RadioWindow(QMainWindow):
 
     def show_about_dialog(self):
         about_text = f"""
-        <b>الراديو العربي STV</b><br>
+        <b>Amwaj</b><br>
         الإصدار: {CURRENT_VERSION}<br>
         المطور: errachedy<br><br>
-        تطبيق بسيط للاستماع إلى الإذاعات العربية.
+        الميزات الجديدة: استماع إلى الإذاعات العربية.
         """
         QMessageBox.about(self, "حول البرنامج", about_text)
 
