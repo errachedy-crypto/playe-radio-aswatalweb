@@ -15,7 +15,7 @@ from packaging import version  # إضافة هذا السطر
 
 try:
     import vlc
-except ImportError:
+except (ImportError, FileNotFoundError):
     vlc = None
 
 # إعدادات تسجيل الأخطاء
@@ -66,7 +66,7 @@ class StationLoader(QThread):
             self.stationsLoaded.emit(categories)
         except requests.exceptions.RequestException as e:
             logging.error(f"Failed to load stations from network: {e}")
-            self.errorOccurred.emit(f"غير قادر على تحميل قائمة الإذاعات:\n{e}")
+            self.errorOccurred.emit(f"غير قادر على تحميل قائمة الإذاعات:\\n{e}")
         except json.JSONDecodeError:
             logging.error("Failed to decode stations JSON.")
             self.errorOccurred.emit("فشل في قراءة بيانات الإذاعات.")
@@ -136,7 +136,7 @@ class RadioWindow(QMainWindow):
 
         # Initialize QMediaPlayer for regular audio
         self.player = QMediaPlayer()
-
+        
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
@@ -175,7 +175,7 @@ class RadioWindow(QMainWindow):
             logging.debug("Setup tasks completed successfully.")
         except Exception as e:
             logging.error(f"Error during setup: {e}")
-            QMessageBox.critical(self, "خطأ في التهيئة", f"حدث خطأ أثناء تهيئة التطبيق:\n{e}")
+            QMessageBox.critical(self, "خطأ في التهيئة", f"حدث خطأ أثناء تهيئة التطبيق:\\n{e}")
 
     def load_settings(self):
         # التأكد من تحميل الإعدادات بشكل صحيح
@@ -352,9 +352,9 @@ class RadioWindow(QMainWindow):
             self.update_checker.start()
 
     def show_update_dialog(self, new_version, download_url):
-        message = (f"يتوفر تحديث جديد!\n\n"
-                   f"الإصدار الحالي: {CURRENT_VERSION}\n"
-                   f"الإصدار الجديد: {new_version}\n\n"
+        message = (f"يتوفر تحديث جديد!\\n\\n"
+                   f"الإصدار الحالي: {CURRENT_VERSION}\\n"
+                   f"الإصدار الجديد: {new_version}\\n\\n"
                    "هل تريد الذهاب إلى صفحة التنزيل الآن؟")
         reply = QMessageBox.information(self, "تحديث متوفر", message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.Yes:
@@ -364,7 +364,7 @@ class RadioWindow(QMainWindow):
         error_string = self.player.errorString()
         if error_string:
             logging.error(f"Player error: {error_string}")
-            QMessageBox.critical(self, "خطأ في التشغيل", f"حدث خطأ أثناء محاولة تشغيل الإذاعة:\n{error_string}")
+            QMessageBox.critical(self, "خطأ في التشغيل", f"حدث خطأ أثناء محاولة تشغيل الإذاعة:\\n{error_string}")
         self.stop_station()
 
     def save_settings(self):
