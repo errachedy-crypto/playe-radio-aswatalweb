@@ -4,8 +4,8 @@
 a = Analysis(
     ['radio_app.py'],
     pathex=[],
-    binaries=[],
-    datas=[],
+    binaries=[('libvlc.dll', '.'), ('libvlccore.dll', '.')],
+    datas=[('plugins', 'plugins')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
