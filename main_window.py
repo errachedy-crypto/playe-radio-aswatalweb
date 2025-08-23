@@ -54,7 +54,7 @@ class RadioWindow(QMainWindow):
             logging.debug("Setup tasks completed successfully.")
         except Exception as e:
             logging.error(f"Error during setup: {e}")
-            QMessageBox.critical(self, "خطأ في التهيئة", f"حدث خطأ أثناء تهيئة التطبيق:\n{e}")
+            QMessageBox.critical(self, "خطأ في التهيئة", f"حدث خطأ أثناء تهيئة التطبيق:\\n{e}")
 
     def setup_ui(self):
         self.tree_widget = QTreeWidget()
@@ -250,9 +250,9 @@ class RadioWindow(QMainWindow):
         self.update_checker.start()
 
     def show_update_dialog(self, new_version, download_url):
-        message = (f"يتوفر تحديث جديد!\n\n"
-                   f"الإصدار الحالي: {CURRENT_VERSION}\n"
-                   f"الإصدار الجديد: {new_version}\n\n"
+        message = (f"يتوفر تحديث جديد!\\n\\n"
+                   f"الإصدار الحالي: {CURRENT_VERSION}\\n"
+                   f"الإصدار الجديد: {new_version}\\n\\n"
                    "هل تريد الذهاب إلى صفحة التنزيل الآن؟")
         reply = QMessageBox.information(self, "تحديث متوفر", message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.Yes:
@@ -328,7 +328,7 @@ class RadioWindow(QMainWindow):
         error_string = self.player.q_player.errorString()
         if error_string:
             logging.error(f"Player error: {error_string}")
-            QMessageBox.critical(self, "خطأ في التشغيل", f"حدث خطأ أثناء محاولة تشغيل الإذاعة:\n{error_string}")
+            QMessageBox.critical(self, "خطأ في التشغيل", f"حدث خطأ أثناء محاولة تشغيل الإذاعة:\\n{error_string}")
         self.stop_station()
 
     def show_help_dialog(self):
