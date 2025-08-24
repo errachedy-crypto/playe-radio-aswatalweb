@@ -1,6 +1,7 @@
 import logging
 import webbrowser
 import os
+import sys
 
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QTreeWidget, QTreeWidgetItem, QPushButton, QSlider, 
@@ -333,9 +334,15 @@ class RadioWindow(QMainWindow):
 
     def show_help_dialog(self):
         try:
-            help_file_path = 'HELP.md'
+            if getattr(sys, 'frozen', False):
+                base_path = sys._MEIPASS
+            else:
+                base_path = os.path.dirname(os.path.abspath(__file__))
+            
+            help_file_path = os.path.join(base_path, 'HELP.md')
+
             if not os.path.exists(help_file_path):
-                QMessageBox.warning(self, "خطأ", "ملف المساعدة 'HELP.md' غير موجود.")
+                QMessageBox.warning(self, "خطأ", f"ملف المساعدة غير موجود في المسار المتوقع:\\n{help_file_path}")
                 return
 
             with open(help_file_path, "r", encoding="utf-8") as f:
