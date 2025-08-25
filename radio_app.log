@@ -509,3 +509,27 @@
 2025-08-25 23:33:43,395 - DEBUG - Update check completed. Latest version: 0.1
 2025-08-25 23:33:43,751 - DEBUG - https://aswatalweb.com:443 "GET /radio/radio.json HTTP/1.1" 200 2540
 2025-08-25 23:33:43,752 - INFO - Successfully loaded 7 categories from network.
+2025-08-25 23:46:20,945 - INFO - Application starting...
+2025-08-25 23:46:21,389 - ERROR - Failed to initialize VLC: no function 'libvlc_new'.
+2025-08-25 23:46:21,496 - DEBUG - Starting setup tasks...
+2025-08-25 23:46:21,529 - DEBUG - Attempting to load stations from network...
+2025-08-25 23:46:21,532 - DEBUG - Checking for updates...
+2025-08-25 23:46:21,537 - DEBUG - Starting new HTTPS connection (1): aswatalweb.com:443
+2025-08-25 23:46:21,538 - DEBUG - Setup tasks completed successfully.
+2025-08-25 23:46:21,540 - DEBUG - Starting new HTTPS connection (1): raw.githubusercontent.com:443
+2025-08-25 23:46:21,707 - DEBUG - https://raw.githubusercontent.com:443 "GET /errachedy-crypto/playe-radio-aswatalweb/main/version.json HTTP/1.1" 200 129
+2025-08-25 23:46:21,709 - DEBUG - Update check completed. Latest version: 0.1
+2025-08-25 23:46:22,007 - DEBUG - https://aswatalweb.com:443 "GET /radio/radio.json HTTP/1.1" 200 2540
+2025-08-25 23:46:22,008 - INFO - Successfully loaded 7 categories from network.
+2025-08-25 23:47:42,732 - INFO - Application starting...
+2025-08-25 23:47:43,467 - ERROR - Failed to initialize VLC: no function 'libvlc_new'.
+2025-08-25 23:47:43,571 - DEBUG - Starting setup tasks...
+2025-08-25 23:47:43,628 - DEBUG - Attempting to load stations from network...
+2025-08-25 23:47:43,630 - DEBUG - Checking for updates...
+2025-08-25 23:47:43,638 - DEBUG - Starting new HTTPS connection (1): aswatalweb.com:443
+2025-08-25 23:47:43,639 - DEBUG - Setup tasks completed successfully.
+2025-08-25 23:47:43,641 - DEBUG - Starting new HTTPS connection (1): raw.githubusercontent.com:443
+2025-08-25 23:47:43,799 - DEBUG - https://raw.githubusercontent.com:443 "GET /errachedy-crypto/playe-radio-aswatalweb/main/version.json HTTP/1.1" 200 129
+2025-08-25 23:47:43,802 - DEBUG - Update check completed. Latest version: 0.1
+2025-08-25 23:47:44,307 - DEBUG - https://aswatalweb.com:443 "GET /radio/radio.json HTTP/1.1" 200 2540
+2025-08-25 23:47:44,309 - INFO - Successfully loaded 7 categories from network.
