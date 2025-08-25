@@ -446,3 +446,27 @@
 2025-08-22 00:08:56,622 - INFO - Playing with QMediaPlayer: http://anisfm.dpdns.org/1
 2025-08-22 00:09:57,217 - INFO - Playing with QMediaPlayer: https://live.aswatalweb.com/listen/live/radio.mp3
 2025-08-22 00:10:16,816 - INFO - Playing with QMediaPlayer: http://167.172.161.13/hls/feedspare/6udfi7v8a3eof6nlps6e9ovfrs65c7l7.m3u8
+2025-08-25 01:20:37,817 - INFO - Application starting...
+2025-08-25 01:20:38,324 - INFO - VLC player initialized successfully.
+2025-08-25 01:20:41,457 - DEBUG - Starting setup tasks...
+2025-08-25 01:20:41,487 - DEBUG - Setup tasks completed successfully.
+2025-08-25 01:20:41,539 - DEBUG - Attempting to load stations from network...
+2025-08-25 01:20:41,539 - DEBUG - Checking for updates...
+2025-08-25 01:20:41,546 - DEBUG - Starting new HTTPS connection (1): aswatalweb.com:443
+2025-08-25 01:20:41,547 - DEBUG - Starting new HTTPS connection (1): raw.githubusercontent.com:443
+2025-08-25 01:20:41,963 - DEBUG - https://aswatalweb.com:443 "GET /radio/radio.json HTTP/1.1" 200 2540
+2025-08-25 01:20:41,964 - INFO - Successfully loaded 7 categories from network.
+2025-08-25 01:20:42,088 - DEBUG - https://raw.githubusercontent.com:443 "GET /errachedy-crypto/playe-radio-aswatalweb/main/version.json HTTP/1.1" 200 129
+2025-08-25 01:20:42,089 - DEBUG - Update check completed. Latest version: 0.1
+2025-08-25 01:21:07,868 - INFO - Application starting...
+2025-08-25 01:21:07,989 - WARNING - python-vlc library not found. Falling back to QMediaPlayer.
+2025-08-25 01:21:08,653 - DEBUG - Starting setup tasks...
+2025-08-25 01:21:08,680 - DEBUG - Setup tasks completed successfully.
+2025-08-25 01:21:08,680 - DEBUG - Attempting to load stations from network...
+2025-08-25 01:21:08,680 - DEBUG - Checking for updates...
+2025-08-25 01:21:08,687 - DEBUG - Starting new HTTPS connection (1): raw.githubusercontent.com:443
+2025-08-25 01:21:08,687 - DEBUG - Starting new HTTPS connection (1): aswatalweb.com:443
+2025-08-25 01:21:08,867 - DEBUG - https://raw.githubusercontent.com:443 "GET /errachedy-crypto/playe-radio-aswatalweb/main/version.json HTTP/1.1" 200 129
+2025-08-25 01:21:08,868 - DEBUG - Update check completed. Latest version: 0.1
+2025-08-25 01:21:08,893 - DEBUG - https://aswatalweb.com:443 "GET /radio/radio.json HTTP/1.1" 200 2540
+2025-08-25 01:21:08,894 - INFO - Successfully loaded 7 categories from network.
