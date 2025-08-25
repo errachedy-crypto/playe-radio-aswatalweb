@@ -5,14 +5,18 @@ except (ImportError, FileNotFoundError):
     vlc = None
 
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
-from PyQt5.QtCore import QUrl
+from PyQt5.QtCore import QUrl, pyqtSignal, QObject
 
-class Player:
+class Player(QObject):
+    errorOccurred = pyqtSignal(str)
+
     def __init__(self):
+        super().__init__()
         self.vlc_instance = None
         self.vlc_player = None
         self.vlc_available = False
         self.q_player = QMediaPlayer()
+        self.q_player.error.connect(self._handle_qt_error)
 
         self._initialize_vlc()
 
@@ -21,6 +25,8 @@ class Player:
             try:
                 self.vlc_instance = vlc.Instance()
                 self.vlc_player = self.vlc_instance.media_player_new()
+                event_manager = self.vlc_player.event_manager()
+                event_manager.event_attach(vlc.EventType.MediaPlayerEncounteredError, self._handle_vlc_error)
                 self.vlc_available = True
                 logging.info("VLC player initialized successfully.")
             except Exception as e:
@@ -71,5 +77,14 @@ class Player:
             current_mute_status = self.q_player.isMuted()
             self.q_player.setMuted(not current_mute_status)
 
+    def _handle_vlc_error(self, event):
+        logging.error("VLC media player encountered an error.")
+        self.errorOccurred.emit("مشغل VLC واجه خطأ. قد يكون مصدر البث لا يعمل.")
+
+    def _handle_qt_error(self):
+        error_string = self.q_player.errorString()
+        logging.error(f"QMediaPlayer error: {error_string}")
+        self.errorOccurred.emit(error_string)
+
     def connect_error_handler(self, handler):
-        self.q_player.error.connect(handler)
+        self.errorOccurred.connect(handler)

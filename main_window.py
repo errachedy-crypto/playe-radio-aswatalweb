@@ -325,11 +325,12 @@ class RadioWindow(QMainWindow):
         else:
             self.setStyleSheet("")
 
-    def handle_player_error(self, error):
-        error_string = self.player.q_player.errorString()
-        if error_string:
-            logging.error(f"Player error: {error_string}")
-            QMessageBox.critical(self, "خطأ في التشغيل", f"حدث خطأ أثناء محاولة تشغيل الإذاعة:\\n{error_string}")
+    def handle_player_error(self, error_string):
+        if not error_string:
+            error_string = "حدث خطأ غير معروف."
+
+        logging.error(f"Player error: {error_string}")
+        QMessageBox.critical(self, "خطأ في التشغيل", f"حدث خطأ أثناء محاولة تشغيل الإذاعة:\\n{error_string}")
         self.stop_station()
 
     def show_help_dialog(self):
