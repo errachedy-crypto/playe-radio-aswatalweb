@@ -1,4 +1,5 @@
-PyQt5
+wxPython
+pycaw
 requests
 packaging
 python-vlc

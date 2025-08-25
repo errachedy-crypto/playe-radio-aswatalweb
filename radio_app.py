@@ -1,6 +1,6 @@
 import sys
 import logging
-from PyQt5.QtWidgets import QApplication
+import wx
 
 from main_window import RadioWindow
 
@@ -11,12 +11,12 @@ def main():
     
     logging.info("Application starting...")
 
-    app = QApplication(sys.argv)
+    app = wx.App(False)
     
     window = RadioWindow()
-    window.show()
+    window.Show()
     
-    sys.exit(app.exec_())
+    app.MainLoop()
 
 if __name__ == '__main__':
     main()

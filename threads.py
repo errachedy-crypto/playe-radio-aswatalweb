@@ -1,20 +1,20 @@
 import requests
 import json
 import logging
-from PyQt5.QtCore import QThread, pyqtSignal
+import threading
 from packaging import version
+import wx
 
 from constants import STATIONS_URL
 from settings import load_stations_cache, save_stations_cache
 
 
-class UpdateChecker(QThread):
-    update_available = pyqtSignal(str, str)
-
-    def __init__(self, current_version, update_url):
+class UpdateChecker(threading.Thread):
+    def __init__(self, current_version, update_url, window):
         super().__init__()
         self.current_version = current_version
         self.update_url = update_url
+        self.window = window
 
     def run(self):
         try:
@@ -25,7 +25,7 @@ class UpdateChecker(QThread):
             latest_version_str = data.get("latest_version")
             download_url = data.get("download_url")
             if latest_version_str and download_url and version.parse(latest_version_str) > version.parse(self.current_version):
-                self.update_available.emit(latest_version_str, download_url)
+                wx.CallAfter(self.window.show_update_dialog, latest_version_str, download_url)
             logging.debug(f"Update check completed. Latest version: {latest_version_str}")
         except requests.exceptions.RequestException as e:
             logging.error(f"Failed to check for updates: {e}")
@@ -33,9 +33,10 @@ class UpdateChecker(QThread):
             logging.error("Failed to decode update JSON.")
 
 
-class StationLoader(QThread):
-    stationsLoaded = pyqtSignal(list)
-    errorOccurred = pyqtSignal(str, bool)
+class StationLoader(threading.Thread):
+    def __init__(self, window):
+        super().__init__()
+        self.window = window
 
     def run(self):
         try:
@@ -50,7 +51,7 @@ class StationLoader(QThread):
 
             logging.info(f"Successfully loaded {len(categories)} categories from network.")
             save_stations_cache(categories)
-            self.stationsLoaded.emit(categories)
+            wx.CallAfter(self.window.on_stations_loaded, categories)
 
         except (requests.exceptions.RequestException, json.JSONDecodeError, ValueError) as e:
             logging.warning(f"Could not load stations from network: {e}. Attempting to load from cache.")
@@ -58,8 +59,8 @@ class StationLoader(QThread):
             cached_categories = load_stations_cache()
             if cached_categories:
                 logging.info("Successfully loaded stations from cache.")
-                self.stationsLoaded.emit(cached_categories)
-                self.errorOccurred.emit("فشل تحديث قائمة الإذاعات. يتم عرض نسخة محفوظة.", False)
+                wx.CallAfter(self.window.on_stations_loaded, cached_categories)
+                wx.CallAfter(self.window.on_stations_load_error, "فشل تحديث قائمة الإذاعات. يتم عرض نسخة محفوظة.", False)
             else:
                 logging.error("Failed to load stations from network and no cache available.")
-                self.errorOccurred.emit("فشل تحميل قائمة الإذاعات من الإنترنت ولا توجد نسخة محفوظة. يرجى التحقق من اتصالك بالإنترنت.", True)
+                wx.CallAfter(self.window.on_stations_load_error, "فشل تحميل قائمة الإذاعات من الإنترنت ولا توجد نسخة محفوظة. يرجى التحقق من اتصالك بالإنترنت.", True)

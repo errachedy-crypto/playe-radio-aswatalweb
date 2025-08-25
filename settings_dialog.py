@@ -1,54 +1,45 @@
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, 
-                             QCheckBox, QRadioButton, QButtonGroup, 
-                             QDialogButtonBox, QLabel)
-from PyQt5.QtCore import Qt
+import wx
 
-class SettingsDialog(QDialog):
+class SettingsDialog(wx.Dialog):
     def __init__(self, settings, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("الإعدادات")
+        super().__init__(parent, title="الإعدادات")
         self.settings = settings.copy()
-        self.layout = QVBoxLayout(self)
         
-        self.update_checkbox = QCheckBox("التحقق من وجود تحديثات عند بدء التشغيل")
-        self.update_checkbox.setChecked(self.settings.get("check_for_updates", True))
-        self.layout.addWidget(self.update_checkbox)
+        self.panel = wx.Panel(self)
+        self.vbox = wx.BoxSizer(wx.VERTICAL)
 
-        self.play_on_startup_checkbox = QCheckBox("تشغيل آخر إذاعة تم الاستماع إليها عند بدء التشغيل")
-        self.play_on_startup_checkbox.setChecked(self.settings.get("play_on_startup", False))
-        self.layout.addWidget(self.play_on_startup_checkbox)
+        self.update_checkbox = wx.CheckBox(self.panel, label="التحقق من وجود تحديثات عند بدء التشغيل")
+        self.update_checkbox.SetValue(self.settings.get("check_for_updates", True))
+        self.vbox.Add(self.update_checkbox, flag=wx.LEFT | wx.TOP, border=10)
 
-        theme_label = QLabel("سمة التطبيق:")
-        self.layout.addWidget(theme_label)
-        self.light_theme_radio = QRadioButton("فاتح")
-        self.dark_theme_radio = QRadioButton("داكن")
-        self.theme_button_group = QButtonGroup()
-        self.theme_button_group.addButton(self.light_theme_radio)
-        self.theme_button_group.addButton(self.dark_theme_radio)
-        if self.settings.get("theme", "light") == "dark":
-            self.dark_theme_radio.setChecked(True)
-        else:
-            self.light_theme_radio.setChecked(True)
-        theme_layout = QHBoxLayout()
-        theme_layout.addWidget(self.light_theme_radio)
-        theme_layout.addWidget(self.dark_theme_radio)
-        self.layout.addLayout(theme_layout)
+        self.play_on_startup_checkbox = wx.CheckBox(self.panel, label="تشغيل آخر إذاعة تم الاستماع إليها عند بدء التشغيل")
+        self.play_on_startup_checkbox.SetValue(self.settings.get("play_on_startup", False))
+        self.vbox.Add(self.play_on_startup_checkbox, flag=wx.LEFT | wx.TOP, border=10)
 
-        self.font_size_checkbox = QCheckBox("استخدام خط كبير")
-        self.font_size_checkbox.setChecked(self.settings.get("large_font", False))
-        self.layout.addWidget(self.font_size_checkbox)
+        theme_label = wx.StaticText(self.panel, label="سمة التطبيق:")
+        self.vbox.Add(theme_label, flag=wx.LEFT | wx.TOP, border=10)
         
-        self.buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel, Qt.Horizontal, self)
-        self.layout.addWidget(self.buttons)
-        self.buttons.accepted.connect(self.save_and_accept)
-        self.buttons.rejected.connect(self.reject)
+        self.theme_radio_box = wx.RadioBox(self.panel, choices=["فاتح", "داكن"], style=wx.RA_SPECIFY_ROWS)
+        self.theme_radio_box.SetSelection(1 if self.settings.get("theme", "light") == "dark" else 0)
+        self.vbox.Add(self.theme_radio_box, flag=wx.LEFT, border=10)
 
-    def save_and_accept(self):
-        self.settings["check_for_updates"] = self.update_checkbox.isChecked()
-        self.settings["play_on_startup"] = self.play_on_startup_checkbox.isChecked()
-        self.settings["theme"] = "dark" if self.dark_theme_radio.isChecked() else "light"
-        self.settings["large_font"] = self.font_size_checkbox.isChecked()
-        self.accept()
+        self.font_size_checkbox = wx.CheckBox(self.panel, label="استخدام خط كبير")
+        self.font_size_checkbox.SetValue(self.settings.get("large_font", False))
+        self.vbox.Add(self.font_size_checkbox, flag=wx.LEFT | wx.TOP, border=10)
+
+        self.buttons = self.CreateButtonSizer(wx.OK | wx.CANCEL)
+        self.vbox.Add(self.buttons, flag=wx.ALIGN_CENTER | wx.TOP | wx.BOTTOM, border=10)
+
+        self.panel.SetSizer(self.vbox)
+
+        self.Bind(wx.EVT_BUTTON, self.on_ok, id=wx.ID_OK)
+
+    def on_ok(self, event):
+        self.settings["check_for_updates"] = self.update_checkbox.GetValue()
+        self.settings["play_on_startup"] = self.play_on_startup_checkbox.GetValue()
+        self.settings["theme"] = "dark" if self.theme_radio_box.GetSelection() == 1 else "light"
+        self.settings["large_font"] = self.font_size_checkbox.GetValue()
+        self.EndModal(wx.ID_OK)
 
     def get_settings(self):
         return self.settings
