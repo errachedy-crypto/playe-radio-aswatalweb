@@ -470,3 +470,8 @@
 2025-08-25 01:21:08,868 - DEBUG - Update check completed. Latest version: 0.1
 2025-08-25 01:21:08,893 - DEBUG - https://aswatalweb.com:443 "GET /radio/radio.json HTTP/1.1" 200 2540
 2025-08-25 01:21:08,894 - INFO - Successfully loaded 7 categories from network.
+2025-08-25 17:58:07,207 - INFO - Application starting...
+2025-08-25 17:58:07,208 - INFO - This is a clean message.
+2025-08-25 17:58:07,208 - INFO - This message contains a URL: xxx
+2025-08-25 17:58:07,208 - ERROR - This is an error with a stream URL: xxx
+2025-08-25 17:58:07,208 - INFO - Testing with a variable: xxx

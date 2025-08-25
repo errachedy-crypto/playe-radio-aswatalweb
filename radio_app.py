@@ -2,6 +2,7 @@ import sys
 import logging
 from PyQt5.QtWidgets import QApplication
 
+from log_filter import URLFilter
 from main_window import RadioWindow
 
 def main():
@@ -9,6 +10,9 @@ def main():
     logging.basicConfig(filename='radio_app.log', level=logging.DEBUG, 
                         format='%(asctime)s - %(levelname)s - %(message)s')
     
+    # Add the custom filter to the root logger to censor URLs
+    logging.getLogger().addFilter(URLFilter())
+
     logging.info("Application starting...")
 
     app = QApplication(sys.argv)
