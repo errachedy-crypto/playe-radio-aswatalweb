@@ -47,3 +47,4 @@ venv.bak/
 *.log
 stv_radio_settings.json
 stv_radio_stations_cache.json
+radio_app.log
