@@ -2,13 +2,7 @@ import logging
 import webbrowser
 import os
 import sys
-
-from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-                             QTreeWidget, QTreeWidgetItem, QPushButton, QSlider, 
-                             QLabel, QMessageBox, QStatusBar, QProgressDialog, 
-                             QLineEdit, QShortcut)
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QKeySequence
+import wx
 
 from constants import CURRENT_VERSION, UPDATE_URL
 from settings import load_settings, save_settings
@@ -17,31 +11,55 @@ from player import Player
 from settings_dialog import SettingsDialog
 from help_dialog import HelpDialog
 
-class RadioWindow(QMainWindow):
+try:
+    from comtypes import CLSCTX_ALL
+    from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+    PYCAW_AVAILABLE = True
+except (ImportError, OSError):
+    PYCAW_AVAILABLE = False
+
+
+class RadioWindow(wx.Frame):
     def __init__(self):
-        super().__init__()
+        super().__init__(None, title=f"Amwaj v{CURRENT_VERSION}", size=(400, 600))
 
         self.settings = load_settings()
         self.player = Player()
+        self.categories = []
 
-        self.setWindowTitle(f"Amwaj v{CURRENT_VERSION}")
-        self.setGeometry(100, 100, 400, 500)
-
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        self.main_layout = QVBoxLayout(central_widget)
+        self.panel = wx.Panel(self)
+        self.main_sizer = wx.BoxSizer(wx.VERTICAL)
 
         self.setup_ui()
         self.setup_menu()
         self.connect_signals()
-        
-        self.volume_slider.setValue(self.settings.get("volume", 40))
-        self.adjust_volume()
 
+        self.set_initial_volume()
+        self.adjust_volume(None)
         self.apply_theme()
 
-        QTimer.singleShot(100, self.finish_setup)
+        wx.CallAfter(self.finish_setup)
         self.setup_shortcuts()
+
+        self.Bind(wx.EVT_CLOSE, self.on_close)
+
+    def set_initial_volume(self):
+        if PYCAW_AVAILABLE:
+            try:
+                devices = AudioUtilities.GetSpeakers()
+                interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+                volume = interface.QueryInterface(IAudioEndpointVolume)
+                # Volume scalar is from 0.0 to 1.0, we need 0 to 100
+                system_volume = int(volume.GetMasterVolumeLevelScalar() * 100)
+                self.volume_slider.SetValue(system_volume)
+                self.settings['volume'] = system_volume
+                return
+            except Exception as e:
+                logging.warning(f"Could not set initial volume from system: {e}")
+
+        # Fallback to saved settings or default
+        self.volume_slider.SetValue(self.settings.get("volume", 50))
+
 
     def finish_setup(self):
         try:
@@ -49,290 +67,314 @@ class RadioWindow(QMainWindow):
             self.load_stations()
             if self.settings.get("check_for_updates", True):
                 self.check_for_updates()
-            self.statusBar().showMessage("أهلاً بك في الراديو العربي STV", 2000)
+            self.GetStatusBar().SetStatusText("أهلاً بك في الراديو العربي STV")
             if self.settings.get("play_on_startup", False):
                 self.play_last_station()
             logging.debug("Setup tasks completed successfully.")
         except Exception as e:
             logging.error(f"Error during setup: {e}")
-            QMessageBox.critical(self, "خطأ في التهيئة", f"حدث خطأ أثناء تهيئة التطبيق:\\n{e}")
+            wx.MessageBox(f"حدث خطأ أثناء تهيئة التطبيق:\n{e}", "خطأ في التهيئة", wx.OK | wx.ICON_ERROR)
 
     def setup_ui(self):
-        self.tree_widget = QTreeWidget()
-        self.tree_widget.setHeaderHidden(True)
-        self.main_layout.addWidget(self.tree_widget)
+        # Tree Widget
+        self.tree_widget = wx.TreeCtrl(self.panel, style=wx.TR_DEFAULT_STYLE | wx.TR_HIDE_ROOT | wx.TR_HAS_BUTTONS)
+        self.main_sizer.Add(self.tree_widget, 1, wx.EXPAND | wx.ALL, 5)
 
-        self.search_box = QLineEdit(self)
-        self.search_box.setPlaceholderText("ابحث عن إذاعة...")
-        self.main_layout.addWidget(self.search_box)
+        # Search Box
+        self.search_box = wx.TextCtrl(self.panel, style=wx.TE_PROCESS_ENTER)
+        self.search_box.SetHint("ابحث عن إذاعة...")
+        self.main_sizer.Add(self.search_box, 0, wx.EXPAND | wx.ALL, 5)
 
-        button_layout = QHBoxLayout()
-        self.play_stop_button = QPushButton("تشغيل")
-        button_layout.addWidget(self.play_stop_button)
-        self.main_layout.addLayout(button_layout)
+        # Buttons
+        button_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.play_stop_button = wx.Button(self.panel, label="تشغيل")
+        button_sizer.Add(self.play_stop_button, 1, wx.EXPAND | wx.ALL, 5)
+        self.main_sizer.Add(button_sizer, 0, wx.EXPAND)
 
-        volume_layout = QHBoxLayout()
-        volume_label = QLabel("مستوى الصوت:")
-        self.volume_slider = QSlider(Qt.Horizontal)
-        self.volume_slider.setRange(0, 100)
-        volume_layout.addWidget(volume_label)
-        volume_layout.addWidget(self.volume_slider)
-        self.main_layout.addLayout(volume_layout)
+        # Volume
+        volume_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        volume_label = wx.StaticText(self.panel, label="مستوى الصوت:")
+        self.volume_slider = wx.Slider(self.panel, value=50, minValue=0, maxValue=100)
+        volume_sizer.Add(volume_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
+        volume_sizer.Add(self.volume_slider, 1, wx.EXPAND | wx.ALL, 5)
+        self.main_sizer.Add(volume_sizer, 0, wx.EXPAND)
 
-        settings_button = QPushButton("الإعدادات")
-        settings_button.clicked.connect(self.open_settings_dialog)
-        self.main_layout.addWidget(settings_button)
+        # Settings button
+        settings_button = wx.Button(self.panel, label="الإعدادات")
+        self.main_sizer.Add(settings_button, 0, wx.EXPAND | wx.ALL, 5)
+        self.Bind(wx.EVT_BUTTON, self.open_settings_dialog, settings_button)
 
-        self.now_playing_label = QLabel("التشغيل الحالي: -")
-        self.now_playing_label.setAlignment(Qt.AlignCenter)
-        self.main_layout.addWidget(self.now_playing_label)
 
-        self.setStatusBar(QStatusBar(self))
+        # Now Playing
+        self.now_playing_label = wx.StaticText(self.panel, label="التشغيل الحالي: -", style=wx.ALIGN_CENTER)
+        self.main_sizer.Add(self.now_playing_label, 0, wx.EXPAND | wx.ALL, 5)
+
+        self.CreateStatusBar()
+
+        self.panel.SetSizer(self.main_sizer)
 
     def connect_signals(self):
-        self.play_stop_button.clicked.connect(self.toggle_play_stop)
-        self.volume_slider.valueChanged.connect(self.adjust_volume)
-        self.tree_widget.itemDoubleClicked.connect(self.play_station)
-        self.search_box.textChanged.connect(self.filter_stations)
+        self.Bind(wx.EVT_BUTTON, self.toggle_play_stop, self.play_stop_button)
+        self.Bind(wx.EVT_SLIDER, self.adjust_volume, self.volume_slider)
+        self.tree_widget.Bind(wx.EVT_TREE_ITEM_ACTIVATED, self.play_station_event)
+        self.tree_widget.Bind(wx.EVT_KEY_DOWN, self.on_tree_key_down)
+        self.search_box.Bind(wx.EVT_TEXT, self.filter_stations)
         self.player.connect_error_handler(self.handle_player_error)
 
     def setup_menu(self):
-        menu_bar = self.menuBar()
-        file_menu = menu_bar.addMenu("&ملف")
+        menu_bar = wx.MenuBar()
+        file_menu = wx.Menu()
         
-        settings_action = file_menu.addAction("الإعدادات...")
-        settings_action.triggered.connect(self.open_settings_dialog)
-        
-        about_action = file_menu.addAction("حول البرنامج...")
-        about_action.triggered.connect(self.show_about_dialog)
-        
-        file_menu.addSeparator()
-        exit_action = file_menu.addAction("خروج")
-        exit_action.triggered.connect(self.close)
+        self.id_settings = wx.NewIdRef()
+        self.id_about = wx.NewIdRef()
+        self.id_exit = wx.NewIdRef()
+        self.id_help = wx.NewIdRef()
 
-        help_menu = menu_bar.addMenu("&المساعدة")
-        help_action = help_menu.addAction("عرض دليل المساعدة")
-        help_action.triggered.connect(self.show_help_dialog)
+        settings_item = file_menu.Append(self.id_settings, "الإعدادات...", "Open settings")
+        self.Bind(wx.EVT_MENU, self.open_settings_dialog, settings_item)
+        
+        about_item = file_menu.Append(self.id_about, "حول البرنامج...", "About the application")
+        self.Bind(wx.EVT_MENU, self.show_about_dialog, about_item)
+
+        file_menu.AppendSeparator()
+        exit_item = file_menu.Append(self.id_exit, "خروج", "Exit the application")
+        self.Bind(wx.EVT_MENU, self.on_close, exit_item)
+        
+        menu_bar.Append(file_menu, "&ملف")
+
+        help_menu = wx.Menu()
+        help_item = help_menu.Append(self.id_help, "عرض دليل المساعدة", "Show help")
+        self.Bind(wx.EVT_MENU, self.show_help_dialog, help_item)
+        menu_bar.Append(help_menu, "&المساعدة")
+
+        self.SetMenuBar(menu_bar)
 
     def setup_shortcuts(self):
-        shortcut_f3 = QShortcut(QKeySequence(Qt.Key_F3), self)
-        shortcut_f3.activated.connect(self.search_box.setFocus)
-        shortcut_f7 = QShortcut(QKeySequence(Qt.Key_F7), self)
-        shortcut_f7.activated.connect(self.lower_volume)
-        shortcut_f8 = QShortcut(QKeySequence(Qt.Key_F8), self)
-        shortcut_f8.activated.connect(self.raise_volume)
-        shortcut_f9 = QShortcut(QKeySequence(Qt.Key_F9), self)
-        shortcut_f9.activated.connect(self.toggle_mute)
-        shortcut_f5 = QShortcut(QKeySequence(Qt.Key_F5), self)
-        shortcut_f5.activated.connect(self.restart_station)
-        shortcut_f2 = QShortcut(QKeySequence(Qt.Key_F2), self)
-        shortcut_f2.activated.connect(self.toggle_play_stop)
+        self.id_play_stop = wx.NewIdRef()
+        self.id_focus_search = wx.NewIdRef()
+        self.id_restart = wx.NewIdRef()
+        self.id_vol_down = wx.NewIdRef()
+        self.id_vol_up = wx.NewIdRef()
+        self.id_mute = wx.NewIdRef()
 
-    def play_station(self, item=None, column=None):
+        accel_tbl = wx.AcceleratorTable([
+            (wx.ACCEL_NORMAL, wx.WXK_F2, self.id_play_stop),
+            (wx.ACCEL_NORMAL, wx.WXK_F3, self.id_focus_search),
+            (wx.ACCEL_NORMAL, wx.WXK_F5, self.id_restart),
+            (wx.ACCEL_NORMAL, wx.WXK_F7, self.id_vol_down),
+            (wx.ACCEL_NORMAL, wx.WXK_F8, self.id_vol_up),
+            (wx.ACCEL_NORMAL, wx.WXK_F9, self.id_mute),
+        ])
+        self.SetAcceleratorTable(accel_tbl)
+
+        self.Bind(wx.EVT_MENU, self.toggle_play_stop, id=self.id_play_stop)
+        self.Bind(wx.EVT_MENU, lambda event: self.search_box.SetFocus(), id=self.id_focus_search)
+        self.Bind(wx.EVT_MENU, self.restart_station, id=self.id_restart)
+        self.Bind(wx.EVT_MENU, self.lower_volume, id=self.id_vol_down)
+        self.Bind(wx.EVT_MENU, self.raise_volume, id=self.id_vol_up)
+        self.Bind(wx.EVT_MENU, self.toggle_mute, id=self.id_mute)
+
+    def on_tree_key_down(self, event):
+        if event.GetKeyCode() == wx.WXK_RETURN:
+            item = self.tree_widget.GetSelection()
+            self.play_station(item)
+        event.Skip()
+
+    def play_station_event(self, event):
+        item = event.GetItem()
+        self.play_station(item)
+
+    def play_station(self, item=None):
         if not item:
-            item = self.tree_widget.currentItem()
-        if not item or not item.data(0, Qt.UserRole):
+            item = self.tree_widget.GetSelection()
+        if not item.IsOk() or self.tree_widget.GetItemData(item) is None:
             return
 
-        station_name = item.text(0).strip()
-        url_string = item.data(0, Qt.UserRole)
+        station_name = self.tree_widget.GetItemText(item)
+        url_string = self.tree_widget.GetItemData(item)
+
+        if not url_string:
+            return
 
         self.settings["last_station_name"] = station_name
         self.player.play(url_string)
-        self.now_playing_label.setText(f"التشغيل الحالي: {station_name}")
-        self.play_stop_button.setText('إيقاف')
+        self.now_playing_label.SetLabel(f"التشغيل الحالي: {station_name}")
+        self.play_stop_button.SetLabel('إيقاف')
 
     def stop_station(self):
         self.player.stop()
-        self.now_playing_label.setText("التشغيل الحالي: -")
-        self.play_stop_button.setText('تشغيل')
+        self.now_playing_label.SetLabel("التشغيل الحالي: -")
+        self.play_stop_button.SetLabel('تشغيل')
 
-    def toggle_play_stop(self):
+    def toggle_play_stop(self, event):
         if self.player.is_playing():
             self.stop_station()
         else:
-            current_item = self.tree_widget.currentItem()
-            if current_item and current_item.data(0, Qt.UserRole):
-                self.play_station(current_item)
+            item = self.tree_widget.GetSelection()
+            if item.IsOk():
+                self.play_station(item)
             else:
                 self.play_last_station()
 
-    def adjust_volume(self):
-        volume = self.volume_slider.value()
+    def adjust_volume(self, event):
+        volume = self.volume_slider.GetValue()
         self.player.set_volume(volume)
         self.settings["volume"] = volume
 
-    def lower_volume(self):
-        self.volume_slider.setValue(max(self.volume_slider.value() - 10, 0))
+    def lower_volume(self, event):
+        self.volume_slider.SetValue(max(self.volume_slider.GetValue() - 10, 0))
 
-    def raise_volume(self):
-        self.volume_slider.setValue(min(self.volume_slider.value() + 10, 100))
+    def raise_volume(self, event):
+        self.volume_slider.SetValue(min(self.volume_slider.GetValue() + 10, 100))
 
-    def toggle_mute(self):
+    def toggle_mute(self, event):
         self.player.toggle_mute()
 
-    def restart_station(self):
+    def restart_station(self, event):
         self.play_station()
 
     def play_last_station(self):
         last_station_name = self.settings.get("last_station_name")
         if not last_station_name:
             return
-        
-        root = self.tree_widget.invisibleRootItem()
-        for i in range(root.childCount()):
-            category = root.child(i)
-            for j in range(category.childCount()):
-                station = category.child(j)
-                if station.text(0).strip() == last_station_name:
-                    self.tree_widget.setCurrentItem(station)
-                    self.play_station(station)
+
+        root = self.tree_widget.GetRootItem()
+        if not root.IsOk():
+            return
+
+        (child, cookie) = self.tree_widget.GetFirstChild(root)
+        while child.IsOk():
+            (grandchild, cookie2) = self.tree_widget.GetFirstChild(child)
+            while grandchild.IsOk():
+                if self.tree_widget.GetItemText(grandchild) == last_station_name:
+                    self.tree_widget.SelectItem(grandchild)
+                    self.play_station(grandchild)
                     return
+                (grandchild, cookie2) = self.tree_widget.GetNextChild(child, cookie2)
+            (child, cookie) = self.tree_widget.GetNextChild(root, cookie)
+
 
     def load_stations(self):
-        self.progress_dialog = QProgressDialog("جاري التحميل ... يرجى الانتظار.", None, 0, 0, self)
-        self.progress_dialog.setCancelButton(None)
-        self.progress_dialog.setWindowModality(Qt.WindowModal)
-        self.progress_dialog.show()
+        self.progress_dialog = wx.ProgressDialog("جاري التحميل", "يرجى الانتظار...", parent=self)
+        self.progress_dialog.Pulse()
 
-        self.station_loader = StationLoader()
-        self.station_loader.stationsLoaded.connect(self.on_stations_loaded)
-        self.station_loader.errorOccurred.connect(self.on_stations_load_error)
+        self.station_loader = StationLoader(self)
         self.station_loader.start()
 
     def on_stations_loaded(self, categories):
-        self.progress_dialog.close()
-        self.populate_stations(categories)
+        self.categories = categories
+        self.progress_dialog.Destroy()
+        self.populate_stations(self.categories)
         self.play_last_station_if_enabled()
 
     def on_stations_load_error(self, error_message, is_critical):
-        self.progress_dialog.close()
+        self.progress_dialog.Destroy()
         if is_critical:
-            QMessageBox.critical(self, "خطأ فادح", error_message)
+            wx.MessageBox(error_message, "خطأ فادح", wx.OK | wx.ICON_ERROR)
         else:
-            self.statusBar().showMessage(error_message, 10000)
+            self.GetStatusBar().SetStatusText(error_message, 10000)
 
     def populate_stations(self, categories):
-        self.tree_widget.clear()
+        self.tree_widget.DeleteAllItems()
+        root = self.tree_widget.AddRoot("All Stations")
         for category in categories:
-            parent = QTreeWidgetItem(self.tree_widget)
-            parent.setText(0, category["name"])
-            parent.setFlags(parent.flags() & ~Qt.ItemIsSelectable)
+            parent = self.tree_widget.AppendItem(root, category["name"])
             for station in category.get("stations", []):
-                child = QTreeWidgetItem(parent)
-                child.setText(0, station["name"])
-                child.setData(0, Qt.UserRole, station["url"])
-        self.tree_widget.expandAll()
+                child = self.tree_widget.AppendItem(parent, station["name"])
+                self.tree_widget.SetItemData(child, station["url"])
+        self.tree_widget.ExpandAll()
 
     def play_last_station_if_enabled(self):
         if self.settings.get("play_on_startup", False):
             self.play_last_station()
 
-    def filter_stations(self):
-        search_text = self.search_box.text().lower()
-        root = self.tree_widget.invisibleRootItem()
+    def filter_stations(self, event):
+        search_text = self.search_box.GetValue().lower()
+        if not search_text:
+            self.populate_stations(self.categories)
+            return
 
-        for i in range(root.childCount()):
-            category = root.child(i)
-            category_has_matches = False
-            for j in range(category.childCount()):
-                station = category.child(j)
-                station_matches = search_text in station.text(0).lower()
-                station.setHidden(not station_matches)
-                if station_matches:
-                    category_has_matches = True
+        filtered_categories = []
+        for category in self.categories:
+            matching_stations = []
+            for station in category.get("stations", []):
+                if search_text in station["name"].lower():
+                    matching_stations.append(station)
             
-            category.setHidden(not category_has_matches)
-            category.setExpanded(category_has_matches)
+            if matching_stations:
+                filtered_categories.append({
+                    "name": category["name"],
+                    "stations": matching_stations
+                })
+
+        self.populate_stations(filtered_categories)
 
     def check_for_updates(self):
-        self.update_checker = UpdateChecker(CURRENT_VERSION, UPDATE_URL)
-        self.update_checker.update_available.connect(self.show_update_dialog)
+        self.update_checker = UpdateChecker(CURRENT_VERSION, UPDATE_URL, self)
         self.update_checker.start()
 
     def show_update_dialog(self, new_version, download_url):
-        message = (f"يتوفر تحديث جديد!\\n\\n"
-                   f"الإصدار الحالي: {CURRENT_VERSION}\\n"
-                   f"الإصدار الجديد: {new_version}\\n\\n"
+        message = (f"يتوفر تحديث جديد!\n\n"
+                   f"الإصدار الحالي: {CURRENT_VERSION}\n"
+                   f"الإصدار الجديد: {new_version}\n\n"
                    "هل تريد الذهاب إلى صفحة التنزيل الآن؟")
-        reply = QMessageBox.information(self, "تحديث متوفر", message, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-        if reply == QMessageBox.Yes:
-            webbrowser.open(download_url)
 
-    def open_settings_dialog(self):
+        dlg = wx.MessageDialog(self, message, "تحديث متوفر", wx.YES_NO | wx.ICON_INFORMATION)
+        if dlg.ShowModal() == wx.ID_YES:
+            webbrowser.open(download_url)
+        dlg.Destroy()
+
+    def open_settings_dialog(self, event):
         dialog = SettingsDialog(self.settings, self)
-        if dialog.exec_():
+        if dialog.ShowModal() == wx.ID_OK:
             new_settings = dialog.get_settings()
             theme_changed = self.settings.get("theme") != new_settings.get("theme")
             font_changed = self.settings.get("large_font") != new_settings.get("large_font")
-
             self.settings = new_settings
             save_settings(self.settings)
             self.apply_theme()
-            
             if theme_changed or font_changed:
-                QMessageBox.information(self, "الإعدادات", "بعض الإعدادات تتطلب إعادة تشغيل التطبيق لتصبح سارية المفعول.")
+                wx.MessageBox("بعض الإعدادات تتطلب إعادة تشغيل التطبيق لتصبح سارية المفعول.", "الإعدادات", wx.OK | wx.ICON_INFORMATION)
+        dialog.Destroy()
 
-    def show_about_dialog(self):
+
+    def show_about_dialog(self, event):
         about_text = f"""
         <b>Amwaj</b><br>
         الإصدار: {CURRENT_VERSION}<br>
         المطور: errachedy<br><br>
         الميزات الجديدة: استماع إلى الإذاعات العربية.
         """
-        QMessageBox.about(self, "حول البرنامج", about_text)
+        wx.MessageBox(about_text, "حول البرنامج", wx.OK | wx.ICON_INFORMATION)
 
     def apply_theme(self):
-        font = self.font()
+        font = self.GetFont()
         if self.settings.get("large_font", False):
-            font.setPointSize(14)
+            font.SetPointSize(14)
         else:
-            font.setPointSize(10)
-        self.setFont(font)
+            font.SetPointSize(10)
+        self.SetFont(font)
 
-        dark_stylesheet = """
-            QWidget {
-                background-color: #2b2b2b;
-                color: #ffffff;
-            }
-            QTreeWidget {
-                background-color: #3c3c3c;
-                border: 1px solid #555;
-            }
-            QPushButton {
-                background-color: #555;
-                border: 1px solid #777;
-                padding: 5px;
-            }
-            QPushButton:hover {
-                background-color: #666;
-            }
-            QLineEdit {
-                background-color: #3c3c3c;
-                border: 1px solid #555;
-                padding: 3px;
-            }
-            QMenuBar, QMenu {
-                background-color: #2b2b2b;
-                color: #ffffff;
-            }
-            QMenu::item:selected {
-                background-color: #555;
-            }
-        """
-        if self.settings.get("theme", "light") == "dark":
-            self.setStyleSheet(dark_stylesheet)
-        else:
-            self.setStyleSheet("")
+        dark_mode = self.settings.get("theme", "light") == "dark"
 
-    def handle_player_error(self, error):
-        error_string = self.player.q_player.errorString()
-        if error_string:
-            logging.error(f"Player error: {error_string}")
-            QMessageBox.critical(self, "خطأ في التشغيل", f"حدث خطأ أثناء محاولة تشغيل الإذاعة:\\n{error_string}")
-        self.stop_station()
+        bg_colour = wx.Colour(43, 43, 43) if dark_mode else wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)
+        fg_colour = wx.Colour(255, 255, 255) if dark_mode else wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOWTEXT)
 
-    def show_help_dialog(self):
+        for widget in self.panel.GetChildren():
+            widget.SetBackgroundColour(bg_colour)
+            widget.SetForegroundColour(fg_colour)
+
+        self.panel.SetBackgroundColour(bg_colour)
+        self.panel.SetForegroundColour(fg_colour)
+        self.panel.Refresh()
+
+
+    def handle_player_error(self, event):
+        logging.error("Player error detected.")
+        wx.CallAfter(wx.MessageBox, "حدث خطأ أثناء محاولة تشغيل الإذاعة", "خطأ في التشغيل", wx.OK | wx.ICON_ERROR)
+        wx.CallAfter(self.stop_station)
+
+    def show_help_dialog(self, event):
         try:
             if getattr(sys, 'frozen', False):
                 base_path = sys._MEIPASS
@@ -342,18 +384,20 @@ class RadioWindow(QMainWindow):
             help_file_path = os.path.join(base_path, 'HELP.md')
 
             if not os.path.exists(help_file_path):
-                QMessageBox.warning(self, "خطأ", f"ملف المساعدة غير موجود في المسار المتوقع:\\n{help_file_path}")
+                wx.MessageBox(f"ملف المساعدة غير موجود في المسار المتوقع:\n{help_file_path}", "خطأ", wx.OK | wx.ICON_WARNING)
                 return
 
             with open(help_file_path, "r", encoding="utf-8") as f:
                 help_content = f.read()
             
             self.help_dialog = HelpDialog(help_content, self)
-            self.help_dialog.show()
+            self.help_dialog.ShowModal()
+            self.help_dialog.Destroy()
         except Exception as e:
             logging.error(f"Could not show help dialog: {e}")
-            QMessageBox.critical(self, "خطأ", f"لا يمكن عرض ملف المساعدة: {e}")
+            wx.MessageBox(f"لا يمكن عرض ملف المساعدة: {e}", "خطأ", wx.OK | wx.ICON_ERROR)
 
-    def closeEvent(self, event):
+
+    def on_close(self, event):
         save_settings(self.settings)
-        super().closeEvent(event)
+        self.Destroy()
