@@ -48,3 +48,30 @@ venv.bak/
 stv_radio_settings.json
 stv_radio_stations_cache.json
 radio_app.log
+
+# System files (macOS/Windows)
+.DS_Store
+Thumbs.db
+
+# IDE / Editor specific files
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Python test files
+*.coverage
+*.hypothesis/
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+
+# Docker / container related files
+docker-compose.override.yml
+Dockerfile.local
+
+# Miscellaneous
+*.bak
+*.swp
+*.swo
