@@ -27,6 +27,10 @@ class SettingsDialog(wx.Dialog):
         self.font_size_checkbox.SetValue(self.settings.get("large_font", False))
         self.vbox.Add(self.font_size_checkbox, flag=wx.LEFT | wx.TOP, border=10)
 
+        self.sound_effects_checkbox = wx.CheckBox(self.panel, label="تفعيل المؤثرات الصوتية")
+        self.sound_effects_checkbox.SetValue(self.settings.get("sound_effects_enabled", True))
+        self.vbox.Add(self.sound_effects_checkbox, flag=wx.LEFT | wx.TOP, border=10)
+
         self.buttons = self.CreateButtonSizer(wx.OK | wx.CANCEL)
         self.vbox.Add(self.buttons, flag=wx.ALIGN_CENTER | wx.TOP | wx.BOTTOM, border=10)
 
@@ -39,6 +43,7 @@ class SettingsDialog(wx.Dialog):
         self.settings["play_on_startup"] = self.play_on_startup_checkbox.GetValue()
         self.settings["theme"] = "dark" if self.theme_radio_box.GetSelection() == 1 else "light"
         self.settings["large_font"] = self.font_size_checkbox.GetValue()
+        self.settings["sound_effects_enabled"] = self.sound_effects_checkbox.GetValue()
         self.EndModal(wx.ID_OK)
 
     def get_settings(self):

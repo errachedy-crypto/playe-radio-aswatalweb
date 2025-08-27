@@ -10,6 +10,7 @@ from threads import UpdateChecker, StationLoader
 from player import Player
 from settings_dialog import SettingsDialog
 from help_dialog import HelpDialog
+from sound_manager import SoundManager
 
 try:
     from comtypes import CLSCTX_ALL
@@ -25,6 +26,7 @@ class RadioWindow(wx.Frame):
 
         self.settings = load_settings()
         self.player = Player()
+        self.sound_manager = SoundManager()
         self.categories = []
 
         self.panel = wx.Panel(self)
@@ -37,6 +39,7 @@ class RadioWindow(wx.Frame):
         self.set_initial_volume()
         self.adjust_volume(None)
         self.apply_theme()
+        self.apply_sound_settings()
 
         wx.CallAfter(self.finish_setup)
         self.setup_shortcuts()
@@ -64,6 +67,7 @@ class RadioWindow(wx.Frame):
     def finish_setup(self):
         try:
             logging.debug("Starting setup tasks...")
+            self.sound_manager.play("startup")
             self.load_stations()
             if self.settings.get("check_for_updates", True):
                 self.check_for_updates()
@@ -118,6 +122,7 @@ class RadioWindow(wx.Frame):
         self.Bind(wx.EVT_SLIDER, self.adjust_volume, self.volume_slider)
         self.tree_widget.Bind(wx.EVT_TREE_ITEM_ACTIVATED, self.play_station_event)
         self.tree_widget.Bind(wx.EVT_CHAR_HOOK, self.on_tree_char_hook)
+        self.tree_widget.Bind(wx.EVT_TREE_SEL_CHANGED, self.on_tree_selection_changed)
         self.search_box.Bind(wx.EVT_TEXT, self.filter_stations)
         self.player.connect_error_handler(self.handle_player_error)
 
@@ -182,6 +187,10 @@ class RadioWindow(wx.Frame):
         else:
             event.Skip()
 
+    def on_tree_selection_changed(self, event):
+        self.sound_manager.play("navigate")
+        event.Skip()
+
     def play_station_event(self, event):
         item = event.GetItem()
         self.play_station(item)
@@ -198,6 +207,7 @@ class RadioWindow(wx.Frame):
         if not url_string:
             return
 
+        self.sound_manager.play("play_station")
         self.settings["last_station_name"] = station_name
         self.player.play(url_string)
         self.now_playing_label.SetLabel(f"التشغيل الحالي: {station_name}")
@@ -205,6 +215,7 @@ class RadioWindow(wx.Frame):
 
     def stop_station(self):
         self.player.stop()
+        self.sound_manager.play("stop_station")
         self.now_playing_label.SetLabel("التشغيل الحالي: -")
         self.play_stop_button.SetLabel('تشغيل')
 
@@ -267,6 +278,7 @@ class RadioWindow(wx.Frame):
         self.categories = categories
         self.progress_dialog.Destroy()
         self.populate_stations(self.categories)
+        self.sound_manager.play("update_success")
         self.play_last_station_if_enabled()
 
     def on_stations_load_error(self, error_message, is_critical):
@@ -326,6 +338,10 @@ class RadioWindow(wx.Frame):
             webbrowser.open(download_url)
         dlg.Destroy()
 
+    def apply_sound_settings(self):
+        enabled = self.settings.get("sound_effects_enabled", True)
+        self.sound_manager.set_enabled(enabled)
+
     def open_settings_dialog(self, event):
         dialog = SettingsDialog(self.settings, self)
         if dialog.ShowModal() == wx.ID_OK:
@@ -335,6 +351,7 @@ class RadioWindow(wx.Frame):
             self.settings = new_settings
             save_settings(self.settings)
             self.apply_theme()
+            self.apply_sound_settings()
             if theme_changed or font_changed:
                 wx.MessageBox("بعض الإعدادات تتطلب إعادة تشغيل التطبيق لتصبح سارية المفعول.", "الإعدادات", wx.OK | wx.ICON_INFORMATION)
         dialog.Destroy()
