@@ -117,7 +117,7 @@ class RadioWindow(wx.Frame):
         self.Bind(wx.EVT_BUTTON, self.toggle_play_stop, self.play_stop_button)
         self.Bind(wx.EVT_SLIDER, self.adjust_volume, self.volume_slider)
         self.tree_widget.Bind(wx.EVT_TREE_ITEM_ACTIVATED, self.play_station_event)
-        self.tree_widget.Bind(wx.EVT_KEY_DOWN, self.on_tree_key_down)
+        self.tree_widget.Bind(wx.EVT_CHAR_HOOK, self.on_tree_char_hook)
         self.search_box.Bind(wx.EVT_TEXT, self.filter_stations)
         self.player.connect_error_handler(self.handle_player_error)
 
@@ -174,11 +174,13 @@ class RadioWindow(wx.Frame):
         self.Bind(wx.EVT_MENU, self.raise_volume, id=self.id_vol_up)
         self.Bind(wx.EVT_MENU, self.toggle_mute, id=self.id_mute)
 
-    def on_tree_key_down(self, event):
+    def on_tree_char_hook(self, event):
         if event.GetKeyCode() == wx.WXK_RETURN:
             item = self.tree_widget.GetSelection()
-            self.play_station(item)
-        event.Skip()
+            if item.IsOk():
+                self.play_station(item)
+        else:
+            event.Skip()
 
     def play_station_event(self, event):
         item = event.GetItem()
