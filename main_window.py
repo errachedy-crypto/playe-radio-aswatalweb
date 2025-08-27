@@ -27,21 +27,14 @@ except (ImportError, OSError):
 
 
 class RadioWindow(wx.Frame):
-    def __init__(self):
+    def __init__(self, vlc_instance, sound_manager):
         super().__init__(None, title=f"Amwaj v{CURRENT_VERSION}", size=(400, 600))
 
-        self.vlc_instance = None
-        if vlc:
-            try:
-                self.vlc_instance = vlc.Instance("--no-video --quiet")
-                logging.info("Main VLC instance created successfully.")
-            except Exception as e:
-                logging.error(f"Failed to create main VLC instance: {e}")
-                # The application can continue without VLC, but features will be disabled.
+        self.vlc_instance = vlc_instance
+        self.sound_manager = sound_manager
 
         self.settings = load_settings()
         self.player = Player(self.vlc_instance)
-        self.sound_manager = SoundManager(self.vlc_instance)
         self.categories = []
 
         self.panel = wx.Panel(self)
