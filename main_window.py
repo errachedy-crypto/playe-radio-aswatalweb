@@ -68,7 +68,8 @@ class RadioWindow(wx.Frame):
     def finish_setup(self):
         try:
             logging.debug("Starting setup tasks...")
-            self.sound_manager.play("startup")
+            # Delay startup sound slightly to ensure audio device is ready
+            wx.CallLater(200, self.sound_manager.play, "startup")
             self.load_stations()
             if self.settings.get("check_for_updates", True):
                 self.check_for_updates()
