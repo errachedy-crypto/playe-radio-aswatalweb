@@ -154,9 +154,38 @@ class RadioWindow(wx.Frame):
         help_menu = wx.Menu()
         help_item = help_menu.Append(self.id_help, "عرض دليل المساعدة", "Show help")
         self.Bind(wx.EVT_MENU, self.show_help_dialog, help_item)
+
+        help_menu.AppendSeparator()
+
+        # Contact Us submenu
+        self.id_email = wx.NewIdRef()
+        self.id_whatsapp = wx.NewIdRef()
+        self.id_telegram = wx.NewIdRef()
+
+        contact_menu = wx.Menu()
+        email_item = contact_menu.Append(self.id_email, "راسلنا عبر البريد الإلكتروني")
+        whatsapp_item = contact_menu.Append(self.id_whatsapp, "واتساب")
+        telegram_item = contact_menu.Append(self.id_telegram, "قناة التيليغرام")
+
+        self.Bind(wx.EVT_MENU, self.on_contact_link, email_item)
+        self.Bind(wx.EVT_MENU, self.on_contact_link, whatsapp_item)
+        self.Bind(wx.EVT_MENU, self.on_contact_link, telegram_item)
+
+        help_menu.AppendSubMenu(contact_menu, "تواصلوا معنا")
+
         menu_bar.Append(help_menu, "&المساعدة")
 
         self.SetMenuBar(menu_bar)
+
+    def on_contact_link(self, event):
+        event_id = event.GetId()
+        urls = {
+            self.id_email: "mailto:amwajr@gmail.com",
+            self.id_whatsapp: "https://wa.me/212703755858",
+            self.id_telegram: "https://t.me/aswatalweb/"
+        }
+        if event_id in urls:
+            webbrowser.open(urls[event_id])
 
     def setup_shortcuts(self):
         self.id_play_stop = wx.NewIdRef()
