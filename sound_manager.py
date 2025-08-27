@@ -6,25 +6,22 @@ except (ImportError, FileNotFoundError):
     vlc = None
 
 class SoundManager:
-    def __init__(self):
-        self.vlc_instance = None
+    def __init__(self, vlc_instance):
+        self.vlc_instance = vlc_instance
         self.sfx_player = None
         self.enabled = False
 
-        if vlc:
+        if self.vlc_instance:
             try:
-                # Using lightweight options for sound effects
-                self.vlc_instance = vlc.Instance("--no-video --quiet")
                 self.sfx_player = self.vlc_instance.media_player_new()
                 self.enabled = True
-                logging.info("SoundManager initialized successfully.")
+                logging.info("SoundManager initialized successfully with shared VLC instance.")
             except Exception as e:
-                self.vlc_instance = None
                 self.sfx_player = None
                 self.enabled = False
-                logging.error(f"SoundManager: Failed to initialize VLC for sound effects: {e}")
+                logging.error(f"SoundManager: Failed to create media player from shared instance: {e}")
         else:
-            logging.warning("SoundManager: python-vlc library not found. Sound effects will be disabled.")
+            logging.warning("SoundManager: No valid VLC instance provided. Sound effects will be disabled.")
 
         self.sounds = {
             "startup": "https://aswatalweb.com/radio/media/demarage.wav",

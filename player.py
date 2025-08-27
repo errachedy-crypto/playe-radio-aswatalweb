@@ -5,8 +5,8 @@ except (ImportError, FileNotFoundError):
     vlc = None
 
 class Player:
-    def __init__(self):
-        self.vlc_instance = None
+    def __init__(self, vlc_instance):
+        self.vlc_instance = vlc_instance
         self.vlc_player = None
         self.vlc_available = False
         self.is_recording_flag = False
@@ -15,17 +15,16 @@ class Player:
         self._initialize_vlc()
 
     def _initialize_vlc(self):
-        if vlc:
+        if self.vlc_instance:
             try:
-                self.vlc_instance = vlc.Instance()
                 self.vlc_player = self.vlc_instance.media_player_new()
                 self.vlc_available = True
-                logging.info("VLC player initialized successfully.")
+                logging.info("Player component initialized successfully with shared VLC instance.")
             except Exception as e:
-                logging.error(f"Failed to initialize VLC: {e}.")
+                logging.error(f"Player: Failed to create media player from shared instance: {e}.")
                 self.vlc_available = False
         else:
-            logging.error("python-vlc library not found.")
+            logging.warning("Player: No valid VLC instance provided. Player will be disabled.")
 
     def play(self, url_string):
         self.stop()
