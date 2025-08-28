@@ -43,7 +43,7 @@ def main():
     vlc_instance = None
     if vlc:
         try:
-            vlc_instance = vlc.Instance("--no-video --quiet")
+            vlc_instance = vlc.Instance("--quiet")
             logging.info("Main VLC instance created successfully.")
         except Exception as e:
             logging.error(f"Failed to create main VLC instance: {e}")
