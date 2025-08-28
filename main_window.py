@@ -5,7 +5,7 @@ import sys
 import wx
 from datetime import datetime
 
-from constants import CURRENT_VERSION, UPDATE_URL
+from constants import CURRENT_VERSION, UPDATE_URL, THEMES
 from settings import load_settings, save_settings
 from threads import UpdateChecker, StationLoader
 from player import Player
@@ -446,24 +446,43 @@ class RadioWindow(wx.Frame):
         wx.MessageBox(about_text, "حول البرنامج", wx.OK | wx.ICON_INFORMATION)
 
     def apply_theme(self):
+        # Font size
         font = self.GetFont()
         if self.settings.get("large_font", False):
             font.SetPointSize(14)
         else:
-            font.SetPointSize(10)
+            font.SetPointSize(wx.NORMAL_FONT.GetPointSize())
         self.SetFont(font)
 
-        dark_mode = self.settings.get("theme", "light") == "dark"
+        # Color scheme
+        theme_name = self.settings.get("theme", "Light Mode 1")
+        theme_colors = THEMES.get(theme_name, THEMES["Light Mode 1"])
 
-        bg_colour = wx.Colour(43, 43, 43) if dark_mode else wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)
-        fg_colour = wx.Colour(255, 255, 255) if dark_mode else wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOWTEXT)
+        bg_colour = wx.Colour(theme_colors["bg"])
+        fg_colour = wx.Colour(theme_colors["text"])
+        btn_colour = wx.Colour(theme_colors["btn_primary"])
 
-        for widget in self.panel.GetChildren():
+        # Apply colors to all widgets
+        widgets_to_theme = [self.panel, self.tree_widget, self.search_box,
+                            self.play_stop_button, self.record_button,
+                            self.volume_slider, self.now_playing_label]
+
+        # Find the settings button to theme it as well
+        for child in self.panel.GetChildren():
+            if isinstance(child, wx.Button) and child.GetLabel() == "الإعدادات":
+                widgets_to_theme.append(child)
+            if isinstance(child, wx.StaticText) and "مستوى الصوت" in child.GetLabel():
+                widgets_to_theme.append(child)
+
+
+        self.SetBackgroundColour(bg_colour)
+
+        for widget in widgets_to_theme:
             widget.SetBackgroundColour(bg_colour)
             widget.SetForegroundColour(fg_colour)
+            if isinstance(widget, wx.Button):
+                widget.SetBackgroundColour(btn_colour)
 
-        self.panel.SetBackgroundColour(bg_colour)
-        self.panel.SetForegroundColour(fg_colour)
         self.panel.Refresh()
 
 
