@@ -47,7 +47,7 @@ class RadioWindow(wx.Frame):
         self.connect_signals()
 
         self.set_initial_volume()
-        self.adjust_volume(None)
+        self._set_volume_and_ui(self.volume_slider.GetValue())
         self.apply_theme()
         self.apply_sound_settings()
 
@@ -141,7 +141,7 @@ class RadioWindow(wx.Frame):
     def connect_signals(self):
         self.Bind(wx.EVT_BUTTON, self.toggle_play_stop, self.play_stop_button)
         self.Bind(wx.EVT_BUTTON, self.on_toggle_record, self.record_button)
-        self.Bind(wx.EVT_SLIDER, self.adjust_volume, self.volume_slider)
+        self.Bind(wx.EVT_SLIDER, self.on_volume_slider_change, self.volume_slider)
         self.Bind(wx.EVT_CHOICE, self.on_sleep_timer_selected, self.sleep_timer_choice)
         self.Bind(wx.EVT_TIMER, self.on_sleep_timer_end, self.sleep_timer)
         self.tree_widget.Bind(wx.EVT_TREE_ITEM_ACTIVATED, self.play_station_event)
@@ -347,16 +347,26 @@ class RadioWindow(wx.Frame):
                 else:
                     wx.MessageBox("فشل بدء التسجيل.", "خطأ", wx.OK | wx.ICON_ERROR)
 
-    def adjust_volume(self, event):
-        volume = self.volume_slider.GetValue()
+    def _set_volume_and_ui(self, volume):
+        """A single method to set volume on the player and update the UI."""
+        self.volume_slider.SetValue(volume)
         self.player.set_volume(volume)
         self.settings["volume"] = volume
 
+    def on_volume_slider_change(self, event):
+        """Handle volume changes from the slider UI."""
+        volume = self.volume_slider.GetValue()
+        self._set_volume_and_ui(volume)
+
     def lower_volume(self, event):
-        self.volume_slider.SetValue(max(self.volume_slider.GetValue() - 10, 0))
+        """Handle F7 shortcut to lower volume."""
+        new_volume = max(self.volume_slider.GetValue() - 10, 0)
+        self._set_volume_and_ui(new_volume)
 
     def raise_volume(self, event):
-        self.volume_slider.SetValue(min(self.volume_slider.GetValue() + 10, 100))
+        """Handle F8 shortcut to raise volume."""
+        new_volume = min(self.volume_slider.GetValue() + 10, 100)
+        self._set_volume_and_ui(new_volume)
 
     def toggle_mute(self, event):
         self.player.toggle_mute()
