@@ -37,6 +37,8 @@ class RadioWindow(wx.Frame):
         self.player = Player(self.vlc_instance)
         self.categories = []
 
+        self.sleep_timer = wx.Timer(self)
+
         self.panel = wx.Panel(self)
         self.main_sizer = wx.BoxSizer(wx.VERTICAL)
 
@@ -75,8 +77,6 @@ class RadioWindow(wx.Frame):
     def finish_setup(self):
         try:
             logging.debug("Starting setup tasks...")
-            # Delay startup sound slightly to ensure audio device is ready
-            wx.CallLater(200, self.sound_manager.play, "startup")
             self.load_stations()
             if self.settings.get("check_for_updates", True):
                 self.check_for_updates()
@@ -114,6 +114,16 @@ class RadioWindow(wx.Frame):
         volume_sizer.Add(self.volume_slider, 1, wx.EXPAND | wx.ALL, 5)
         self.main_sizer.Add(volume_sizer, 0, wx.EXPAND)
 
+        # Sleep Timer
+        timer_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        timer_label = wx.StaticText(self.panel, label="مؤقت النوم:")
+        self.timer_options = ["إيقاف", "15 دقيقة", "30 دقيقة", "60 دقيقة", "90 دقيقة"]
+        self.sleep_timer_choice = wx.Choice(self.panel, choices=self.timer_options)
+        self.sleep_timer_choice.SetSelection(0)
+        timer_sizer.Add(timer_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
+        timer_sizer.Add(self.sleep_timer_choice, 1, wx.EXPAND | wx.ALL, 5)
+        self.main_sizer.Add(timer_sizer, 0, wx.EXPAND)
+
         # Settings button
         settings_button = wx.Button(self.panel, label="الإعدادات")
         self.main_sizer.Add(settings_button, 0, wx.EXPAND | wx.ALL, 5)
@@ -132,11 +142,40 @@ class RadioWindow(wx.Frame):
         self.Bind(wx.EVT_BUTTON, self.toggle_play_stop, self.play_stop_button)
         self.Bind(wx.EVT_BUTTON, self.on_toggle_record, self.record_button)
         self.Bind(wx.EVT_SLIDER, self.adjust_volume, self.volume_slider)
+        self.Bind(wx.EVT_CHOICE, self.on_sleep_timer_selected, self.sleep_timer_choice)
+        self.Bind(wx.EVT_TIMER, self.on_sleep_timer_end, self.sleep_timer)
         self.tree_widget.Bind(wx.EVT_TREE_ITEM_ACTIVATED, self.play_station_event)
         self.tree_widget.Bind(wx.EVT_CHAR_HOOK, self.on_tree_char_hook)
         self.tree_widget.Bind(wx.EVT_TREE_SEL_CHANGED, self.on_tree_selection_changed)
         self.search_box.Bind(wx.EVT_TEXT, self.filter_stations)
         self.player.connect_error_handler(self.handle_player_error)
+
+    def on_sleep_timer_selected(self, event):
+        selection = self.sleep_timer_choice.GetSelection()
+        # Stop any existing timer
+        self.sleep_timer.Stop()
+        self.GetStatusBar().SetStatusText("") # Clear status bar
+
+        if selection == 0: # "Off"
+            return
+
+        # Get minutes from selection, e.g., "15 دقيقة" -> 15
+        try:
+            minutes_str = self.timer_options[selection].split()[0]
+            minutes = int(minutes_str)
+        except (ValueError, IndexError):
+            logging.error(f"Could not parse sleep timer duration: {self.timer_options[selection]}")
+            return
+
+        milliseconds = minutes * 60 * 1000
+        self.sleep_timer.StartOnce(milliseconds)
+        self.GetStatusBar().SetStatusText(f"سيتم إيقاف الراديو بعد {minutes} دقيقة.")
+
+    def on_sleep_timer_end(self, event):
+        logging.info("Sleep timer finished. Stopping playback.")
+        self.GetStatusBar().SetStatusText("تم إيقاف الراديو بواسطة مؤقت النوم.")
+        self.stop_station()
+        self.sleep_timer_choice.SetSelection(0) # Reset dropdown to "Off"
 
     def setup_menu(self):
         menu_bar = wx.MenuBar()
