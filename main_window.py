@@ -49,7 +49,6 @@ class RadioWindow(wx.Frame):
 
         self.sleep_timer = wx.Timer(self)
 
-        # Initialize the podcast database
         db.initialize_database()
 
         self.main_panel = wx.Panel(self)
@@ -60,14 +59,11 @@ class RadioWindow(wx.Frame):
         self.connect_signals()
 
         self.set_initial_volume()
-        self._set_volume_and_ui(self.volume_slider.GetValue())
+        self.adjust_volume(None)
         self.apply_theme()
-        self.apply_sound_settings()
 
         wx.CallAfter(self.finish_setup)
         self.setup_shortcuts()
-
-        self.load_and_display_podcasts()
 
         self.Bind(wx.EVT_CLOSE, self.on_close)
 
@@ -238,57 +234,6 @@ class RadioWindow(wx.Frame):
         self.play_episode_button.Bind(wx.EVT_BUTTON, self.on_play_episode)
         self.download_episode_button.Bind(wx.EVT_BUTTON, self.on_download_episode)
 
-    def on_download_episode(self, event):
-        selected_index = self.episode_list_ctrl.GetFirstSelected()
-        if selected_index == -1:
-            wx.MessageBox("الرجاء تحديد حلقة لتنزيلها.", "خطأ", wx.OK | wx.ICON_ERROR)
-            return
-
-        if self.downloader_thread and self.downloader_thread.is_alive():
-            wx.MessageBox("يوجد تنزيل آخر قيد التقدم. يرجى الانتظار حتى يكتمل.", "تنزيل قيد التقدم", wx.OK | wx.ICON_WARNING)
-            return
-
-        episode_index = self.episode_list_ctrl.GetItemData(selected_index)
-        episode = self.podcast_episodes[episode_index]
-
-        url = episode.get('link')
-        if not url:
-            wx.MessageBox("لا يوجد رابط صوتي صالح لهذه الحلقة.", "خطأ", wx.OK | wx.ICON_ERROR)
-            return
-
-        safe_title = re.sub(r'[\\/*?:"<>|]', "", episode['title'])
-
-        # Heuristic for file extension
-        try:
-            from urllib.parse import urlparse
-            parsed_path = urlparse(url).path
-            file_extension = os.path.splitext(parsed_path)[1]
-            if not file_extension in ['.mp3', '.m4a', '.wav', '.ogg']:
-                file_extension = ".mp3" # Default if no common audio ext
-        except Exception:
-            file_extension = ".mp3"
-
-        suggested_filename = f"{safe_title}{file_extension}"
-
-        with wx.FileDialog(self, "حفظ الحلقة", wildcard="Audio Files (*.mp3;*.m4a;*.wav;*.ogg)|*.mp3;*.m4a;*.wav;*.ogg",
-                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
-                           defaultFile=suggested_filename) as fileDialog:
-            if fileDialog.ShowModal() == wx.ID_CANCEL:
-                return
-            pathname = fileDialog.GetPath()
-
-        self.downloader_thread = Downloader(self, url, pathname)
-        self.downloader_thread.start()
-        self.GetStatusBar().SetStatusText(f"بدء تنزيل: {episode['title']}...")
-
-    def on_download_finished(self, message, status):
-        if status == "success":
-            wx.MessageBox(message, "اكتمل التنزيل", wx.OK | wx.ICON_INFORMATION)
-        else:
-            wx.MessageBox(message, "فشل التنزيل", wx.OK | wx.ICON_ERROR)
-        self.GetStatusBar().SetStatusText("جاهز")
-        self.downloader_thread = None
-
     def on_add_podcast(self, event):
         rss_url = self.podcast_url_entry.GetValue().strip()
         if not rss_url:
@@ -344,7 +289,6 @@ class RadioWindow(wx.Frame):
         selected_index = event.GetIndex()
         podcast_id = self.podcast_list_ctrl.GetItemData(selected_index)
 
-        # Find the full podcast data from self.podcasts
         selected_podcast = next((p for p in self.podcasts if p['id'] == podcast_id), None)
 
         if not selected_podcast:
@@ -363,7 +307,7 @@ class RadioWindow(wx.Frame):
         for index, episode in enumerate(self.podcast_episodes):
             self.episode_list_ctrl.InsertItem(index, episode['title'])
             self.episode_list_ctrl.SetItem(index, 1, episode['published'])
-            self.episode_list_ctrl.SetItemData(index, index) # Store index to self.podcast_episodes
+            self.episode_list_ctrl.SetItemData(index, index)
 
         self.GetStatusBar().SetStatusText(f"تم تحميل {len(self.podcast_episodes)} حلقة.")
 
@@ -392,108 +336,109 @@ class RadioWindow(wx.Frame):
         self.now_playing_label.SetLabel(f"تشغيل بودكاست: {episode['title']}")
         self.play_stop_button.SetLabel('إيقاف')
 
+    def on_download_episode(self, event):
+        selected_index = self.episode_list_ctrl.GetFirstSelected()
+        if selected_index == -1:
+            wx.MessageBox("الرجاء تحديد حلقة لتنزيلها.", "خطأ", wx.OK | wx.ICON_ERROR)
+            return
+
+        if self.downloader_thread and self.downloader_thread.is_alive():
+            wx.MessageBox("يوجد تنزيل آخر قيد التقدم. يرجى الانتظار حتى يكتمل.", "تنزيل قيد التقدم", wx.OK | wx.ICON_WARNING)
+            return
+
+        episode_index = self.episode_list_ctrl.GetItemData(selected_index)
+        episode = self.podcast_episodes[episode_index]
+
+        url = episode.get('link')
+        if not url:
+            wx.MessageBox("لا يوجد رابط صوتي صالح لهذه الحلقة.", "خطأ", wx.OK | wx.ICON_ERROR)
+            return
+
+        safe_title = re.sub(r'[\\/*?:"<>|]', "", episode['title'])
+
+        try:
+            from urllib.parse import urlparse
+            parsed_path = urlparse(url).path
+            file_extension = os.path.splitext(parsed_path)[1]
+            if not file_extension in ['.mp3', '.m4a', '.wav', '.ogg']:
+                file_extension = ".mp3"
+        except Exception:
+            file_extension = ".mp3"
+
+        suggested_filename = f"{safe_title}{file_extension}"
+
+        with wx.FileDialog(self, "حفظ الحلقة", wildcard="Audio Files (*.mp3;*.m4a;*.wav;*.ogg)|*.mp3;*.m4a;*.wav;*.ogg",
+                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+                           defaultFile=suggested_filename) as fileDialog:
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return
+            pathname = fileDialog.GetPath()
+
+        self.downloader_thread = Downloader(self, url, pathname)
+        self.downloader_thread.start()
+        self.GetStatusBar().SetStatusText(f"بدء تنزيل: {episode['title']}...")
+
+    def on_download_finished(self, message, status):
+        if status == "success":
+            wx.MessageBox(message, "اكتمل التنزيل", wx.OK | wx.ICON_INFORMATION)
+        else:
+            wx.MessageBox(message, "فشل التنزيل", wx.OK | wx.ICON_ERROR)
+        self.GetStatusBar().SetStatusText("جاهز")
+        self.downloader_thread = None
+
     def on_sleep_timer_selected(self, event):
         selection = self.sleep_timer_choice.GetSelection()
-        # Stop any existing timer
         self.sleep_timer.Stop()
-        self.GetStatusBar().SetStatusText("") # Clear status bar
-
-        if selection == 0: # "Off"
-            return
-
-        # Get minutes from selection, e.g., "15 دقيقة" -> 15
+        self.GetStatusBar().SetStatusText("")
+        if selection == 0: return
         try:
-            minutes_str = self.timer_options[selection].split()[0]
-            minutes = int(minutes_str)
+            minutes = int(self.timer_options[selection].split()[0])
         except (ValueError, IndexError):
-            logging.error(f"Could not parse sleep timer duration: {self.timer_options[selection]}")
             return
-
-        milliseconds = minutes * 60 * 1000
-        self.sleep_timer.StartOnce(milliseconds)
+        self.sleep_timer.StartOnce(minutes * 60 * 1000)
         self.GetStatusBar().SetStatusText(f"سيتم إيقاف الراديو بعد {minutes} دقيقة.")
 
     def on_sleep_timer_end(self, event):
-        logging.info("Sleep timer finished. Stopping playback.")
         self.GetStatusBar().SetStatusText("تم إيقاف الراديو بواسطة مؤقت النوم.")
         self.stop_station()
-        self.sleep_timer_choice.SetSelection(0) # Reset dropdown to "Off"
+        self.sleep_timer_choice.SetSelection(0)
 
     def setup_menu(self):
         menu_bar = wx.MenuBar()
         file_menu = wx.Menu()
-        
-        self.id_settings = wx.NewIdRef()
-        self.id_about = wx.NewIdRef()
-        self.id_exit = wx.NewIdRef()
-        self.id_help = wx.NewIdRef()
-
+        self.id_settings = wx.NewIdRef(); self.id_about = wx.NewIdRef(); self.id_exit = wx.NewIdRef(); self.id_help = wx.NewIdRef()
         settings_item = file_menu.Append(self.id_settings, "الإعدادات...", "Open settings")
         self.Bind(wx.EVT_MENU, self.open_settings_dialog, settings_item)
-        
         about_item = file_menu.Append(self.id_about, "حول البرنامج...", "About the application")
         self.Bind(wx.EVT_MENU, self.show_about_dialog, about_item)
-
         file_menu.AppendSeparator()
         exit_item = file_menu.Append(self.id_exit, "خروج", "Exit the application")
         self.Bind(wx.EVT_MENU, self.on_close, exit_item)
-        
         menu_bar.Append(file_menu, "&ملف")
-
         help_menu = wx.Menu()
         help_item = help_menu.Append(self.id_help, "عرض دليل المساعدة", "Show help")
         self.Bind(wx.EVT_MENU, self.show_help_dialog, help_item)
-
         help_menu.AppendSeparator()
-
-        # Contact Us submenu
-        self.id_email = wx.NewIdRef()
-        self.id_whatsapp = wx.NewIdRef()
-        self.id_telegram = wx.NewIdRef()
-
+        self.id_email = wx.NewIdRef(); self.id_whatsapp = wx.NewIdRef(); self.id_telegram = wx.NewIdRef()
         contact_menu = wx.Menu()
         email_item = contact_menu.Append(self.id_email, "راسلنا عبر البريد الإلكتروني")
         whatsapp_item = contact_menu.Append(self.id_whatsapp, "واتساب")
         telegram_item = contact_menu.Append(self.id_telegram, "قناة التيليغرام")
-
         self.Bind(wx.EVT_MENU, self.on_contact_link, email_item)
         self.Bind(wx.EVT_MENU, self.on_contact_link, whatsapp_item)
         self.Bind(wx.EVT_MENU, self.on_contact_link, telegram_item)
-
         help_menu.AppendSubMenu(contact_menu, "تواصلوا معنا")
-
         menu_bar.Append(help_menu, "&المساعدة")
-
         self.SetMenuBar(menu_bar)
 
     def on_contact_link(self, event):
-        event_id = event.GetId()
-        urls = {
-            self.id_email: "mailto:amwajr@gmail.com",
-            self.id_whatsapp: "https://wa.me/212703755858",
-            self.id_telegram: "https://t.me/aswatalweb/"
-        }
-        if event_id in urls:
-            webbrowser.open(urls[event_id])
+        urls = { self.id_email: "mailto:amwajr@gmail.com", self.id_whatsapp: "https://wa.me/212703755858", self.id_telegram: "https://t.me/aswatalweb/" }
+        if event.GetId() in urls: webbrowser.open(urls[event.GetId()])
 
     def setup_shortcuts(self):
-        self.id_play_stop = wx.NewIdRef()
-        self.id_focus_search = wx.NewIdRef()
-        self.id_restart = wx.NewIdRef()
-        self.id_vol_down = wx.NewIdRef()
-        self.id_vol_up = wx.NewIdRef()
-        self.id_mute = wx.NewIdRef()
-
-        accel_tbl = wx.AcceleratorTable([
-            (wx.ACCEL_NORMAL, wx.WXK_F2, self.id_play_stop),
-            (wx.ACCEL_NORMAL, wx.WXK_F3, self.id_focus_search),
-            (wx.ACCEL_NORMAL, wx.WXK_F5, self.id_restart),
-            (wx.ACCEL_NORMAL, wx.WXK_F7, self.id_vol_down),
-            (wx.ACCEL_NORMAL, wx.WXK_F8, self.id_vol_up),
-            (wx.ACCEL_NORMAL, wx.WXK_F9, self.id_mute),
-        ])
+        self.id_play_stop = wx.NewIdRef(); self.id_focus_search = wx.NewIdRef(); self.id_restart = wx.NewIdRef(); self.id_vol_down = wx.NewIdRef(); self.id_vol_up = wx.NewIdRef(); self.id_mute = wx.NewIdRef()
+        accel_tbl = wx.AcceleratorTable([ (wx.ACCEL_NORMAL, wx.WXK_F2, self.id_play_stop), (wx.ACCEL_NORMAL, wx.WXK_F3, self.id_focus_search), (wx.ACCEL_NORMAL, wx.WXK_F5, self.id_restart), (wx.ACCEL_NORMAL, wx.WXK_F7, self.id_vol_down), (wx.ACCEL_NORMAL, wx.WXK_F8, self.id_vol_up), (wx.ACCEL_NORMAL, wx.WXK_F9, self.id_mute), ])
         self.SetAcceleratorTable(accel_tbl)
-
         self.Bind(wx.EVT_MENU, self.toggle_play_stop, id=self.id_play_stop)
         self.Bind(wx.EVT_MENU, lambda event: self.search_box.SetFocus(), id=self.id_focus_search)
         self.Bind(wx.EVT_MENU, self.restart_station, id=self.id_restart)
@@ -504,31 +449,21 @@ class RadioWindow(wx.Frame):
     def on_tree_char_hook(self, event):
         if event.GetKeyCode() == wx.WXK_RETURN:
             item = self.tree_widget.GetSelection()
-            if item.IsOk():
-                self.play_station(item)
-        else:
-            event.Skip()
+            if item.IsOk(): self.play_station(item)
+        else: event.Skip()
 
     def on_tree_selection_changed(self, event):
-        self.sound_manager.play("navigate")
-        event.Skip()
+        self.sound_manager.play("navigate"); event.Skip()
 
     def play_station_event(self, event):
-        item = event.GetItem()
-        self.play_station(item)
+        self.play_station(event.GetItem())
 
     def play_station(self, item=None):
-        if not item:
-            item = self.tree_widget.GetSelection()
-        if not item.IsOk() or self.tree_widget.GetItemData(item) is None:
-            return
-
+        if not item: item = self.tree_widget.GetSelection()
+        if not item.IsOk() or self.tree_widget.GetItemData(item) is None: return
         station_name = self.tree_widget.GetItemText(item)
         url_string = self.tree_widget.GetItemData(item)
-
-        if not url_string:
-            return
-
+        if not url_string: return
         self.sound_manager.play("play_station")
         self.settings["last_station_name"] = station_name
         self.player.play(url_string)
@@ -545,14 +480,11 @@ class RadioWindow(wx.Frame):
         if self.player.is_playing():
             self.stop_station()
         else:
-            # Determine if we are on Radio or Podcast tab
-            if self.notebook.GetSelection() == 0: # Radio
+            if self.notebook.GetSelection() == 0:
                 item = self.tree_widget.GetSelection()
-                if item.IsOk():
-                    self.play_station(item)
-                else:
-                    self.play_last_station()
-            else: # Podcast
+                if item.IsOk(): self.play_station(item)
+                else: self.play_last_station()
+            else:
                 self.on_play_episode(event)
 
     def on_toggle_record(self, event):
@@ -566,7 +498,6 @@ class RadioWindow(wx.Frame):
                 wx.MessageBox("يجب تشغيل إذاعة أولاً لبدء التسجيل.", "خطأ", wx.OK | wx.ICON_ERROR)
                 return
 
-            # Prevent recording podcasts
             if self.notebook.GetSelection() == 1:
                 wx.MessageBox("تسجيل البودكاست غير مدعوم حاليًا. هذه الميزة مخصصة لبث الراديو المباشر.", "معلومات", wx.OK | wx.ICON_INFORMATION)
                 return
@@ -575,19 +506,12 @@ class RadioWindow(wx.Frame):
             station_name = "recording"
             if item.IsOk():
                 station_name = self.tree_widget.GetItemText(item)
-                # Sanitize station name for use in a filename
                 station_name = "".join(x for x in station_name if x.isalnum() or x in " _-").strip()
 
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             default_filename = f"{station_name}_{timestamp}.ts"
-
-            with wx.FileDialog(self, "حفظ التسجيل", wildcard="Transport Stream (*.ts)|*.ts",
-                               style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
-                               defaultFile=default_filename) as fileDialog:
-
-                if fileDialog.ShowModal() == wx.ID_CANCEL:
-                    return
-
+            with wx.FileDialog(self, "حفظ التسجيل", wildcard="Transport Stream (*.ts)|*.ts", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT, defaultFile=default_filename) as fileDialog:
+                if fileDialog.ShowModal() == wx.ID_CANCEL: return
                 pathname = fileDialog.GetPath()
                 if self.player.start_recording(pathname):
                     self.record_button.SetLabel("إيقاف التسجيل")
@@ -596,26 +520,19 @@ class RadioWindow(wx.Frame):
                 else:
                     wx.MessageBox("فشل بدء التسجيل.", "خطأ", wx.OK | wx.ICON_ERROR)
 
+    def on_volume_slider_change(self, event):
+        self._set_volume_and_ui(self.volume_slider.GetValue())
+
     def _set_volume_and_ui(self, volume):
-        """A single method to set volume on the player and update the UI."""
         self.volume_slider.SetValue(volume)
         self.player.set_volume(volume)
         self.settings["volume"] = volume
 
-    def on_volume_slider_change(self, event):
-        """Handle volume changes from the slider UI."""
-        volume = self.volume_slider.GetValue()
-        self._set_volume_and_ui(volume)
-
     def lower_volume(self, event):
-        """Handle F7 shortcut to lower volume."""
-        new_volume = max(self.volume_slider.GetValue() - 10, 0)
-        self._set_volume_and_ui(new_volume)
+        self._set_volume_and_ui(max(self.volume_slider.GetValue() - 10, 0))
 
     def raise_volume(self, event):
-        """Handle F8 shortcut to raise volume."""
-        new_volume = min(self.volume_slider.GetValue() + 10, 100)
-        self._set_volume_and_ui(new_volume)
+        self._set_volume_and_ui(min(self.volume_slider.GetValue() + 10, 100))
 
     def toggle_mute(self, event):
         self.player.toggle_mute()
@@ -625,13 +542,9 @@ class RadioWindow(wx.Frame):
 
     def play_last_station(self):
         last_station_name = self.settings.get("last_station_name")
-        if not last_station_name:
-            return
-
+        if not last_station_name: return
         root = self.tree_widget.GetRootItem()
-        if not root.IsOk():
-            return
-
+        if not root.IsOk(): return
         (child, cookie) = self.tree_widget.GetFirstChild(root)
         while child.IsOk():
             (grandchild, cookie2) = self.tree_widget.GetFirstChild(child)
@@ -643,11 +556,9 @@ class RadioWindow(wx.Frame):
                 (grandchild, cookie2) = self.tree_widget.GetNextChild(child, cookie2)
             (child, cookie) = self.tree_widget.GetNextChild(root, cookie)
 
-
     def load_stations(self):
         self.progress_dialog = wx.ProgressDialog("جاري التحميل", "يرجى الانتظار...", parent=self)
         self.progress_dialog.Pulse()
-
         self.station_loader = StationLoader(self)
         self.station_loader.start()
 
@@ -660,10 +571,8 @@ class RadioWindow(wx.Frame):
 
     def on_stations_load_error(self, error_message, is_critical):
         self.progress_dialog.Destroy()
-        if is_critical:
-            wx.MessageBox(error_message, "خطأ فادح", wx.OK | wx.ICON_ERROR)
-        else:
-            self.GetStatusBar().SetStatusText(error_message, 10000)
+        if is_critical: wx.MessageBox(error_message, "خطأ فادح", wx.OK | wx.ICON_ERROR)
+        else: self.GetStatusBar().SetStatusText(error_message, 10000)
 
     def populate_stations(self, categories):
         self.tree_widget.DeleteAllItems()
@@ -676,28 +585,18 @@ class RadioWindow(wx.Frame):
         self.tree_widget.ExpandAll()
 
     def play_last_station_if_enabled(self):
-        if self.settings.get("play_on_startup", False):
-            self.play_last_station()
+        if self.settings.get("play_on_startup", False): self.play_last_station()
 
     def filter_stations(self, event):
         search_text = self.search_box.GetValue().lower()
         if not search_text:
             self.populate_stations(self.categories)
             return
-
         filtered_categories = []
         for category in self.categories:
-            matching_stations = []
-            for station in category.get("stations", []):
-                if search_text in station["name"].lower():
-                    matching_stations.append(station)
-            
+            matching_stations = [s for s in category.get("stations", []) if search_text in s["name"].lower()]
             if matching_stations:
-                filtered_categories.append({
-                    "name": category["name"],
-                    "stations": matching_stations
-                })
-
+                filtered_categories.append({"name": category["name"], "stations": matching_stations})
         self.populate_stations(filtered_categories)
 
     def check_for_updates(self):
@@ -705,19 +604,13 @@ class RadioWindow(wx.Frame):
         self.update_checker.start()
 
     def show_update_dialog(self, new_version, download_url):
-        message = (f"يتوفر تحديث جديد!\n\n"
-                   f"الإصدار الحالي: {CURRENT_VERSION}\n"
-                   f"الإصدار الجديد: {new_version}\n\n"
-                   "هل تريد الذهاب إلى صفحة التنزيل الآن؟")
-
+        message = (f"يتوفر تحديث جديد!\n\nالإصدار الحالي: {CURRENT_VERSION}\nالإصدار الجديد: {new_version}\n\nهل تريد الذهاب إلى صفحة التنزيل الآن؟")
         dlg = wx.MessageDialog(self, message, "تحديث متوفر", wx.YES_NO | wx.ICON_INFORMATION)
-        if dlg.ShowModal() == wx.ID_YES:
-            webbrowser.open(download_url)
+        if dlg.ShowModal() == wx.ID_YES: webbrowser.open(download_url)
         dlg.Destroy()
 
     def apply_sound_settings(self):
-        enabled = self.settings.get("sound_effects_enabled", True)
-        self.sound_manager.set_enabled(enabled)
+        self.sound_manager.set_enabled(self.settings.get("sound_effects_enabled", True))
 
     def open_settings_dialog(self, event):
         dialog = SettingsDialog(self.settings, self)
@@ -733,7 +626,6 @@ class RadioWindow(wx.Frame):
                 wx.MessageBox("بعض الإعدادات تتطلب إعادة تشغيل التطبيق لتصبح سارية المفعول.", "الإعدادات", wx.OK | wx.ICON_INFORMATION)
         dialog.Destroy()
 
-
     def show_about_dialog(self, event):
         about_text = f"""
         <html><body>
@@ -745,79 +637,55 @@ class RadioWindow(wx.Frame):
             <li>إضافة مدير بودكاست كامل.</li>
             <li>إمكانية إضافة وحذف خلاصات البودكاست.</li>
             <li>عرض وتشغيل حلقات البودكاست.</li>
+            <li>تنزيل الحلقات للاستماع بدون انترنت.</li>
         </ul>
         </body></html>
         """
-        # Using a regular MessageDialog as HtmlWindow is complex here
         wx.MessageBox(re.sub('<[^<]+?>', '', about_text.replace("<br>", "\n")), "حول البرنامج", wx.OK | wx.ICON_INFORMATION)
 
     def apply_theme(self):
-        # Font size
         font = self.GetFont()
-        if self.settings.get("large_font", False):
-            font.SetPointSize(14)
-        else:
-            font.SetPointSize(wx.NORMAL_FONT.GetPointSize())
+        if self.settings.get("large_font", False): font.SetPointSize(14)
+        else: font.SetPointSize(wx.NORMAL_FONT.GetPointSize())
         self.SetFont(font)
-
-        # Color scheme
         theme_name = self.settings.get("theme", "Light Mode 1")
         theme_colors = THEMES.get(theme_name, THEMES["Light Mode 1"])
-
         bg_colour = wx.Colour(theme_colors["bg"])
         fg_colour = wx.Colour(theme_colors["text"])
         btn_colour = wx.Colour(theme_colors["btn_primary"])
-
-        # List of all panels to theme
         panels_to_theme = [self.main_panel, self.radio_panel, self.podcast_panel]
-
         self.SetBackgroundColour(bg_colour)
-
         for panel in panels_to_theme:
             panel.SetBackgroundColour(bg_colour)
             panel.SetForegroundColour(fg_colour)
-
             for widget in panel.GetChildren():
-                # For most widgets, setting the parent's color is enough,
-                # but we do it explicitly for robustness.
-                if not isinstance(widget, wx.Notebook):
+                if not isinstance(widget, (wx.Notebook, wx.SplitterWindow)):
                     widget.SetBackgroundColour(bg_colour)
                     widget.SetForegroundColour(fg_colour)
-
                 if isinstance(widget, wx.Button):
                     widget.SetBackgroundColour(btn_colour)
-
         self.main_panel.Refresh()
-
 
     def handle_player_error(self, event):
         logging.error("Player error detected.")
-        wx.CallAfter(wx.MessageBox, "حدث خطأ أثناء محاولة تشغيل الإذاعة", "خطأ في التشغيل", wx.OK | wx.ICON_ERROR)
+        wx.CallAfter(wx.MessageBox, "حدث خطأ أثناء محاولة تشغيل الوسائط", "خطأ في التشغيل", wx.OK | wx.ICON_ERROR)
         wx.CallAfter(self.stop_station)
 
     def show_help_dialog(self, event):
         try:
-            if getattr(sys, 'frozen', False):
-                base_path = sys._MEIPASS
-            else:
-                base_path = os.path.dirname(os.path.abspath(__file__))
-            
+            base_path = sys._MEIPASS if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
             help_file_path = os.path.join(base_path, 'HELP.md')
-
             if not os.path.exists(help_file_path):
-                wx.MessageBox(f"ملف المساعدة غير موجود في المسار المتوقع:\n{help_file_path}", "خطأ", wx.OK | wx.ICON_WARNING)
+                wx.MessageBox(f"ملف المساعدة غير موجود: {help_file_path}", "خطأ", wx.OK | wx.ICON_WARNING)
                 return
-
             with open(help_file_path, "r", encoding="utf-8") as f:
                 help_content = f.read()
-            
             self.help_dialog = HelpDialog(help_content, self)
             self.help_dialog.ShowModal()
             self.help_dialog.Destroy()
         except Exception as e:
             logging.error(f"Could not show help dialog: {e}")
             wx.MessageBox(f"لا يمكن عرض ملف المساعدة: {e}", "خطأ", wx.OK | wx.ICON_ERROR)
-
 
     def on_close(self, event):
         if self.downloader_thread and self.downloader_thread.is_alive():

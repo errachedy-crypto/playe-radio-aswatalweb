@@ -21,7 +21,6 @@ def parse_feed(feed_url):
 
         if feed.bozo:
             logging.warning(f"Malformed feed at {feed_url}. Bozo exception: {feed.bozo_exception}")
-            # We can still try to process it, feedparser often recovers.
 
         feed_title = feed.feed.get('title', 'Untitled Podcast')
 
@@ -34,18 +33,17 @@ def parse_feed(feed_url):
                 'published': entry.get('published', 'No date available.')
             }
 
-            # Find the audio enclosure link, which is the standard way to specify podcast media.
+            # Find the audio enclosure link
             if 'enclosures' in entry:
                 for enclosure in entry.enclosures:
                     if 'audio' in enclosure.get('type', ''):
                         episode['link'] = enclosure.href
                         break # Take the first audio enclosure found
 
-            # As a fallback, check if the standard 'link' tag points to an audio file.
+            # Fallback for feeds that use the 'link' tag directly for the audio
             if not episode['link'] and entry.get('link', '').endswith(('.mp3', '.m4a', '.wav', '.ogg')):
                  episode['link'] = entry.get('link')
 
-            # Only add the episode if we successfully found a playable link
             if episode['link']:
                 episodes.append(episode)
             else:

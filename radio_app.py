@@ -1,16 +1,9 @@
 import sys
-import os
 import logging
 import wx
 
 from log_formatter import CensoringFormatter
-from splash_screen import SplashScreen
-from sound_manager import SoundManager
-
-try:
-    import vlc
-except (ImportError, FileNotFoundError):
-    vlc = None
+from main_window import RadioWindow
 
 def setup_logging():
     """Configures the logging system manually to use the custom formatter."""
@@ -35,25 +28,13 @@ def setup_logging():
 def main():
     """Main function to run the application."""
     setup_logging()
+
     logging.info("Application starting...")
 
     app = wx.App(False)
-
-    # Create a single VLC instance to be shared across the application
-    vlc_instance = None
-    if vlc:
-        try:
-            vlc_instance = vlc.Instance("--quiet")
-            logging.info("Main VLC instance created successfully.")
-        except Exception as e:
-            logging.error(f"Failed to create main VLC instance: {e}")
     
-    # Create a single SoundManager instance
-    sound_manager = SoundManager(vlc_instance)
-
-    # Show the splash screen, which will then create the main window
-    splash = SplashScreen(vlc_instance, sound_manager)
-    splash.Show()
+    window = RadioWindow()
+    window.Show()
     
     app.MainLoop()
 
