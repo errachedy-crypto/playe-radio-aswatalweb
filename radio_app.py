@@ -1,6 +1,9 @@
 import sys
 import logging
 import wx
+import os
+import vlc
+from sound_manager import SoundManager
 
 from log_formatter import CensoringFormatter
 from main_window import RadioWindow
@@ -9,7 +12,6 @@ def setup_logging():
     """Configures the logging system manually to use the custom formatter."""
     log_file = 'radio_app.log'
     
-    # Clean up old log file on every startup
     if os.path.exists(log_file):
         try:
             os.remove(log_file)
@@ -31,9 +33,17 @@ def main():
 
     logging.info("Application starting...")
 
+    try:
+        vlc_instance = vlc.Instance()
+        sound_manager = SoundManager(vlc_instance)
+    except Exception as e:
+        logging.critical(f"Failed to initialize VLC or SoundManager: {e}")
+        wx.MessageBox(f"فشل تهيئة مكونات الصوت الأساسية (VLC). لا يمكن تشغيل التطبيق.\n\nخطأ: {e}", "خطأ فادح", wx.OK | wx.ICON_ERROR)
+        return
+
     app = wx.App(False)
     
-    window = RadioWindow()
+    window = RadioWindow(vlc_instance=vlc_instance, sound_manager=sound_manager)
     window.Show()
     
     app.MainLoop()
