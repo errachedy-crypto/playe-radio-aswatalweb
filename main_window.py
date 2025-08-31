@@ -2,6 +2,7 @@ import logging
 import webbrowser
 import os
 import sys
+from datetime import datetime
 import wx
 
 from constants import CURRENT_VERSION, UPDATE_URL, THEMES
@@ -95,6 +96,8 @@ class RadioWindow(wx.Frame):
         button_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.play_stop_button = wx.Button(self.panel, label="تشغيل")
         button_sizer.Add(self.play_stop_button, 1, wx.EXPAND | wx.ALL, 5)
+        self.record_button = wx.Button(self.panel, label="تسجيل")
+        button_sizer.Add(self.record_button, 1, wx.EXPAND | wx.ALL, 5)
         self.main_sizer.Add(button_sizer, 0, wx.EXPAND)
 
         # Volume
@@ -131,6 +134,7 @@ class RadioWindow(wx.Frame):
 
     def connect_signals(self):
         self.Bind(wx.EVT_BUTTON, self.toggle_play_stop, self.play_stop_button)
+        self.Bind(wx.EVT_BUTTON, self.on_toggle_record, self.record_button)
         self.Bind(wx.EVT_SLIDER, self.adjust_volume, self.volume_slider)
         self.Bind(wx.EVT_CHOICE, self.on_sleep_timer_selected, self.sleep_timer_choice)
         self.Bind(wx.EVT_TIMER, self.on_sleep_timer_end, self.sleep_timer)
@@ -156,6 +160,38 @@ class RadioWindow(wx.Frame):
         self.GetStatusBar().SetStatusText("تم إيقاف الراديو بواسطة مؤقت النوم.")
         self.stop_station()
         self.sleep_timer_choice.SetSelection(0)
+
+    def on_toggle_record(self, event):
+        if self.player.is_recording():
+            self.player.stop_recording()
+            self.record_button.SetLabel("تسجيل")
+            self.play_stop_button.Enable(True)
+            self.GetStatusBar().SetStatusText("تم إيقاف التسجيل.")
+        else:
+            if not self.player.is_playing() or not self.player.current_url:
+                wx.MessageBox("يجب تشغيل إذاعة أولاً لبدء التسجيل.", "خطأ", wx.OK | wx.ICON_ERROR)
+                return
+
+            station_name = "recording"
+            item = self.tree_widget.GetSelection()
+            if item.IsOk():
+                station_name = self.tree_widget.GetItemText(item)
+                # Sanitize station name for filename
+                station_name = "".join(x for x in station_name if x.isalnum() or x in " _-").strip()
+
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            default_filename = f"{station_name}_{timestamp}.ts"
+
+            with wx.FileDialog(self, "حفظ التسجيل", wildcard="Transport Stream (*.ts)|*.ts", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT, defaultFile=default_filename) as fileDialog:
+                if fileDialog.ShowModal() == wx.ID_CANCEL:
+                    return
+                pathname = fileDialog.GetPath()
+                if self.player.start_recording(pathname):
+                    self.record_button.SetLabel("إيقاف التسجيل")
+                    self.play_stop_button.Enable(False)
+                    self.GetStatusBar().SetStatusText(f"جاري التسجيل في: {pathname}")
+                else:
+                    wx.MessageBox("فشل بدء التسجيل.", "خطأ", wx.OK | wx.ICON_ERROR)
 
     def setup_menu(self):
         menu_bar = wx.MenuBar()
