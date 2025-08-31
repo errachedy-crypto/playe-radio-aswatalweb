@@ -4,7 +4,7 @@ import os
 import sys
 import wx
 
-from constants import CURRENT_VERSION, UPDATE_URL
+from constants import CURRENT_VERSION, UPDATE_URL, THEMES
 from settings import load_settings, save_settings
 from threads import UpdateChecker, StationLoader
 from player import Player
@@ -402,20 +402,29 @@ class RadioWindow(wx.Frame):
         if self.settings.get("large_font", False):
             font.SetPointSize(14)
         else:
-            font.SetPointSize(10)
+            font.SetPointSize(wx.NORMAL_FONT.GetPointSize())
         self.SetFont(font)
 
-        dark_mode = self.settings.get("theme", "light") == "dark"
+        theme_name = self.settings.get("theme", "light")
+        theme_colors = THEMES.get(theme_name, THEMES["light"])
 
-        bg_colour = wx.Colour(43, 43, 43) if dark_mode else wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)
-        fg_colour = wx.Colour(255, 255, 255) if dark_mode else wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOWTEXT)
-
-        for widget in self.panel.GetChildren():
-            widget.SetBackgroundColour(bg_colour)
-            widget.SetForegroundColour(fg_colour)
+        bg_colour = wx.Colour(theme_colors["bg"])
+        fg_colour = wx.Colour(theme_colors["text"])
 
         self.panel.SetBackgroundColour(bg_colour)
         self.panel.SetForegroundColour(fg_colour)
+
+        for widget in self.panel.GetChildren():
+            if isinstance(widget, (wx.StaticText, wx.CheckBox, wx.RadioBox, wx.TextCtrl, wx.Choice)):
+                widget.SetBackgroundColour(bg_colour)
+                widget.SetForegroundColour(fg_colour)
+            elif isinstance(widget, wx.Button):
+                # Buttons might need special handling depending on the OS
+                pass
+
+        self.tree_widget.SetBackgroundColour(bg_colour)
+        self.tree_widget.SetForegroundColour(fg_colour)
+
         self.panel.Refresh()
 
 
