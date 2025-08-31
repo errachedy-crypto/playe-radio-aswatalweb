@@ -24,7 +24,7 @@ class SettingsDialog(wx.Dialog):
         self.font_size_checkbox.SetValue(self.settings.get("large_font", False))
         self.vbox.Add(self.font_size_checkbox, flag=wx.LEFT | wx.RIGHT | wx.BOTTOM, border=10)
 
-        # Sound Effects Checkbox
+        # Sound Effects Checkbox (for next step)
         self.sound_effects_checkbox = wx.CheckBox(self.panel, label="تفعيل المؤثرات الصوتية للتطبيق")
         self.sound_effects_checkbox.SetValue(self.settings.get("sound_effects_enabled", True))
         self.vbox.Add(self.sound_effects_checkbox, flag=wx.LEFT | wx.RIGHT | wx.BOTTOM, border=10)

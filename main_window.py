@@ -15,8 +15,6 @@ from settings_dialog import SettingsDialog
 from help_dialog import HelpDialog
 from sound_manager import SoundManager
 import database_manager as db
-import podcast_parser
-from downloader import Downloader
 
 try:
     import vlc
@@ -42,11 +40,6 @@ class RadioWindow(wx.Frame):
         self.player = Player(self.vlc_instance)
         self.categories = []
 
-        # Podcast data
-        self.podcasts = []
-        self.podcast_episodes = []
-        self.downloader_thread = None
-
         self.sleep_timer = wx.Timer(self)
 
         db.initialize_database()
@@ -66,7 +59,7 @@ class RadioWindow(wx.Frame):
         wx.CallAfter(self.finish_setup)
         self.setup_shortcuts()
 
-        self.load_and_display_podcasts()
+        # self.load_and_display_podcasts() # Will be enabled in v0.5
 
         self.Bind(wx.EVT_CLOSE, self.on_close)
 
@@ -76,15 +69,12 @@ class RadioWindow(wx.Frame):
                 devices = AudioUtilities.GetSpeakers()
                 interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
                 volume = interface.QueryInterface(IAudioEndpointVolume)
-                # Volume scalar is from 0.0 to 1.0, we need 0 to 100
                 system_volume = int(volume.GetMasterVolumeLevelScalar() * 100)
                 self.volume_slider.SetValue(system_volume)
                 self.settings['volume'] = system_volume
                 return
             except Exception as e:
                 logging.warning(f"Could not set initial volume from system: {e}")
-
-        # Fallback to saved settings or default
         self.volume_slider.SetValue(self.settings.get("volume", 50))
 
 
@@ -94,7 +84,7 @@ class RadioWindow(wx.Frame):
             self.load_stations()
             if self.settings.get("check_for_updates", True):
                 self.check_for_updates()
-            self.GetStatusBar().SetStatusText("أهلاً بك في الراديو العربي STV")
+            self.GetStatusBar().SetStatusText("أهلاً بك في راديو أمواج")
             if self.settings.get("play_on_startup", False):
                 self.play_last_station()
             logging.debug("Setup tasks completed successfully.")
@@ -108,7 +98,7 @@ class RadioWindow(wx.Frame):
         self.podcast_panel = wx.Panel(self.notebook)
 
         self.notebook.AddPage(self.radio_panel, "الراديو")
-        self.notebook.AddPage(self.podcast_panel, "البودكاست")
+        # self.notebook.AddPage(self.podcast_panel, "البودكاست") # Will be enabled in v0.5
 
         self.main_sizer.Add(self.notebook, 1, wx.EXPAND)
 
@@ -120,9 +110,6 @@ class RadioWindow(wx.Frame):
         self.search_box.SetHint("ابحث عن إذاعة...")
         radio_sizer.Add(self.search_box, 0, wx.EXPAND | wx.ALL, 5)
         self.radio_panel.SetSizer(radio_sizer)
-
-        # --- Podcast Panel Layout ---
-        self.setup_podcast_ui()
 
         # --- Bottom Controls (Shared) ---
         button_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -158,64 +145,6 @@ class RadioWindow(wx.Frame):
         self.CreateStatusBar()
         self.main_panel.SetSizer(self.main_sizer)
 
-    def setup_podcast_ui(self):
-        podcast_sizer = wx.BoxSizer(wx.VERTICAL)
-
-        splitter = wx.SplitterWindow(self.podcast_panel, style=wx.SP_LIVE_UPDATE)
-
-        # --- Left Panel ---
-        left_panel = wx.Panel(splitter)
-        left_sizer = wx.BoxSizer(wx.VERTICAL)
-
-        # Add Podcast Controls
-        add_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.podcast_url_entry = wx.TextCtrl(left_panel)
-        self.podcast_url_entry.SetHint("أدخل رابط RSS للبودكاست")
-        add_sizer.Add(self.podcast_url_entry, 1, wx.EXPAND | wx.ALL, 5)
-        self.add_podcast_button = wx.Button(left_panel, label="إضافة")
-        add_sizer.Add(self.add_podcast_button, 0, wx.ALL, 5)
-        left_sizer.Add(add_sizer, 0, wx.EXPAND)
-
-        # Podcast List
-        self.podcast_list_ctrl = wx.ListCtrl(left_panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
-        self.podcast_list_ctrl.InsertColumn(0, "اسم البودكاست", width=200)
-        left_sizer.Add(self.podcast_list_ctrl, 1, wx.EXPAND | wx.ALL, 5)
-
-        # Delete Podcast Button
-        self.delete_podcast_button = wx.Button(left_panel, label="حذف البودكاست المحدد")
-        left_sizer.Add(self.delete_podcast_button, 0, wx.EXPAND | wx.ALL, 5)
-
-        left_panel.SetSizer(left_sizer)
-
-        # --- Right Panel ---
-        right_panel = wx.Panel(splitter)
-        right_sizer = wx.BoxSizer(wx.VERTICAL)
-
-        # Episode List
-        self.episode_list_ctrl = wx.ListCtrl(right_panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
-        self.episode_list_ctrl.InsertColumn(0, "عنوان الحلقة", width=300)
-        self.episode_list_ctrl.InsertColumn(1, "تاريخ النشر", width=150)
-        right_sizer.Add(self.episode_list_ctrl, 1, wx.EXPAND | wx.ALL, 5)
-
-        # Description Box
-        self.episode_desc_box = wx.html.HtmlWindow(right_panel, style=wx.html.HW_SCROLLBAR_AUTO)
-        self.episode_desc_box.SetMinSize((-1, 100))
-        right_sizer.Add(self.episode_desc_box, 1, wx.EXPAND | wx.ALL, 5)
-
-        # Episode Buttons
-        episode_btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.play_episode_button = wx.Button(right_panel, label="تشغيل الحلقة")
-        self.download_episode_button = wx.Button(right_panel, label="تنزيل الحلقة")
-        episode_btn_sizer.Add(self.play_episode_button, 1, wx.EXPAND | wx.ALL, 5)
-        episode_btn_sizer.Add(self.download_episode_button, 1, wx.EXPAND | wx.ALL, 5)
-        right_sizer.Add(episode_btn_sizer, 0, wx.EXPAND)
-
-        right_panel.SetSizer(right_sizer)
-
-        splitter.SplitVertically(left_panel, right_panel, 250)
-        podcast_sizer.Add(splitter, 1, wx.EXPAND)
-        self.podcast_panel.SetSizer(podcast_sizer)
-
     def connect_signals(self):
         self.Bind(wx.EVT_BUTTON, self.toggle_play_stop, self.play_stop_button)
         self.Bind(wx.EVT_BUTTON, self.on_toggle_record, self.record_button)
@@ -227,167 +156,6 @@ class RadioWindow(wx.Frame):
         self.tree_widget.Bind(wx.EVT_TREE_SEL_CHANGED, self.on_tree_selection_changed)
         self.search_box.Bind(wx.EVT_TEXT, self.filter_stations)
         self.player.connect_error_handler(self.handle_player_error)
-
-        # Podcast Signals
-        self.add_podcast_button.Bind(wx.EVT_BUTTON, self.on_add_podcast)
-        self.delete_podcast_button.Bind(wx.EVT_BUTTON, self.on_delete_podcast)
-        self.podcast_list_ctrl.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_podcast_selected)
-        self.episode_list_ctrl.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_episode_selected)
-        self.episode_list_ctrl.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_play_episode)
-        self.play_episode_button.Bind(wx.EVT_BUTTON, self.on_play_episode)
-        self.download_episode_button.Bind(wx.EVT_BUTTON, self.on_download_episode)
-
-    def on_add_podcast(self, event):
-        rss_url = self.podcast_url_entry.GetValue().strip()
-        if not rss_url:
-            wx.MessageBox("الرجاء إدخال رابط RSS صالح.", "خطأ", wx.OK | wx.ICON_ERROR)
-            return
-
-        self.GetStatusBar().SetStatusText(f"جاري تحليل الرابط: {rss_url}...")
-        wx.Yield() # Update UI
-
-        title, episodes = podcast_parser.parse_feed(rss_url)
-
-        if not title:
-            wx.MessageBox(f"فشل تحليل الرابط. تأكد من أنه رابط RSS صالح.", "خطأ في التحليل", wx.OK | wx.ICON_ERROR)
-            self.GetStatusBar().SetStatusText("فشل التحليل.")
-            return
-
-        if db.add_podcast(title, rss_url):
-            self.podcast_url_entry.Clear()
-            self.load_and_display_podcasts()
-            self.GetStatusBar().SetStatusText(f"تمت إضافة بودكاست '{title}' بنجاح.")
-        else:
-            wx.MessageBox("هذا البودكاست موجود بالفعل في قائمتك.", "معلومات", wx.OK | wx.ICON_INFORMATION)
-            self.GetStatusBar().SetStatusText("البودكاست موجود بالفعل.")
-
-    def on_delete_podcast(self, event):
-        selected_index = self.podcast_list_ctrl.GetFirstSelected()
-        if selected_index == -1:
-            wx.MessageBox("الرجاء تحديد بودكاست لحذفه.", "خطأ", wx.OK | wx.ICON_ERROR)
-            return
-
-        podcast_id = self.podcast_list_ctrl.GetItemData(selected_index)
-        podcast_name = self.podcast_list_ctrl.GetItemText(selected_index)
-
-        dlg = wx.MessageDialog(self, f"هل أنت متأكد أنك تريد حذف بودكاست '{podcast_name}'؟", "تأكيد الحذف", wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION)
-        if dlg.ShowModal() == wx.ID_YES:
-            if db.delete_podcast(podcast_id):
-                self.load_and_display_podcasts()
-                self.episode_list_ctrl.DeleteAllItems()
-                self.episode_desc_box.SetPage("")
-                self.GetStatusBar().SetStatusText(f"تم حذف '{podcast_name}'.")
-            else:
-                wx.MessageBox("فشل حذف البودكاست من قاعدة البيانات.", "خطأ", wx.OK | wx.ICON_ERROR)
-        dlg.Destroy()
-
-    def load_and_display_podcasts(self):
-        self.podcast_list_ctrl.DeleteAllItems()
-        self.podcasts = db.get_all_podcasts()
-        for index, podcast in enumerate(self.podcasts):
-            self.podcast_list_ctrl.InsertItem(index, podcast['name'])
-            self.podcast_list_ctrl.SetItemData(index, podcast['id'])
-
-    def on_podcast_selected(self, event):
-        selected_index = event.GetIndex()
-        podcast_id = self.podcast_list_ctrl.GetItemData(selected_index)
-
-        selected_podcast = next((p for p in self.podcasts if p['id'] == podcast_id), None)
-
-        if not selected_podcast:
-            return
-
-        self.GetStatusBar().SetStatusText(f"جاري تحميل حلقات بودكاست '{selected_podcast['name']}'...")
-        wx.Yield()
-
-        _, self.podcast_episodes = podcast_parser.parse_feed(selected_podcast['rss_url'])
-
-        self.episode_list_ctrl.DeleteAllItems()
-        if not self.podcast_episodes:
-            self.GetStatusBar().SetStatusText("لم يتم العثور على حلقات أو حدث خطأ.")
-            return
-
-        for index, episode in enumerate(self.podcast_episodes):
-            self.episode_list_ctrl.InsertItem(index, episode['title'])
-            self.episode_list_ctrl.SetItem(index, 1, episode['published'])
-            self.episode_list_ctrl.SetItemData(index, index)
-
-        self.GetStatusBar().SetStatusText(f"تم تحميل {len(self.podcast_episodes)} حلقة.")
-
-    def on_episode_selected(self, event):
-        selected_index = event.GetIndex()
-        episode_index = self.episode_list_ctrl.GetItemData(selected_index)
-        episode = self.podcast_episodes[episode_index]
-        self.episode_desc_box.SetPage(episode['description'])
-
-    def on_play_episode(self, event):
-        selected_index = self.episode_list_ctrl.GetFirstSelected()
-        if selected_index == -1:
-            wx.MessageBox("الرجاء تحديد حلقة لتشغيلها.", "خطأ", wx.OK | wx.ICON_ERROR)
-            return
-
-        episode_index = self.episode_list_ctrl.GetItemData(selected_index)
-        episode = self.podcast_episodes[episode_index]
-
-        url = episode.get('link')
-        if not url:
-            wx.MessageBox("لا يوجد رابط صوتي صالح لهذه الحلقة.", "خطأ", wx.OK | wx.ICON_ERROR)
-            return
-
-        self.sound_manager.play("play_station")
-        self.player.play(url)
-        self.now_playing_label.SetLabel(f"تشغيل بودكاست: {episode['title']}")
-        self.play_stop_button.SetLabel('إيقاف')
-
-    def on_download_episode(self, event):
-        selected_index = self.episode_list_ctrl.GetFirstSelected()
-        if selected_index == -1:
-            wx.MessageBox("الرجاء تحديد حلقة لتنزيلها.", "خطأ", wx.OK | wx.ICON_ERROR)
-            return
-
-        if self.downloader_thread and self.downloader_thread.is_alive():
-            wx.MessageBox("يوجد تنزيل آخر قيد التقدم. يرجى الانتظار حتى يكتمل.", "تنزيل قيد التقدم", wx.OK | wx.ICON_WARNING)
-            return
-
-        episode_index = self.episode_list_ctrl.GetItemData(selected_index)
-        episode = self.podcast_episodes[episode_index]
-
-        url = episode.get('link')
-        if not url:
-            wx.MessageBox("لا يوجد رابط صوتي صالح لهذه الحلقة.", "خطأ", wx.OK | wx.ICON_ERROR)
-            return
-
-        safe_title = re.sub(r'[\\/*?:"<>|]', "", episode['title'])
-
-        try:
-            from urllib.parse import urlparse
-            parsed_path = urlparse(url).path
-            file_extension = os.path.splitext(parsed_path)[1]
-            if not file_extension in ['.mp3', '.m4a', '.wav', '.ogg']:
-                file_extension = ".mp3"
-        except Exception:
-            file_extension = ".mp3"
-
-        suggested_filename = f"{safe_title}{file_extension}"
-
-        with wx.FileDialog(self, "حفظ الحلقة", wildcard="Audio Files (*.mp3;*.m4a;*.wav;*.ogg)|*.mp3;*.m4a;*.wav;*.ogg",
-                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
-                           defaultFile=suggested_filename) as fileDialog:
-            if fileDialog.ShowModal() == wx.ID_CANCEL:
-                return
-            pathname = fileDialog.GetPath()
-
-        self.downloader_thread = Downloader(self, url, pathname)
-        self.downloader_thread.start()
-        self.GetStatusBar().SetStatusText(f"بدء تنزيل: {episode['title']}...")
-
-    def on_download_finished(self, message, status):
-        if status == "success":
-            wx.MessageBox(message, "اكتمل التنزيل", wx.OK | wx.ICON_INFORMATION)
-        else:
-            wx.MessageBox(message, "فشل التنزيل", wx.OK | wx.ICON_ERROR)
-        self.GetStatusBar().SetStatusText("جاهز")
-        self.downloader_thread = None
 
     def on_sleep_timer_selected(self, event):
         selection = self.sleep_timer_choice.GetSelection()
@@ -483,12 +251,9 @@ class RadioWindow(wx.Frame):
         if self.player.is_playing():
             self.stop_station()
         else:
-            if self.notebook.GetSelection() == 0:
-                item = self.tree_widget.GetSelection()
-                if item.IsOk(): self.play_station(item)
-                else: self.play_last_station()
-            else:
-                self.on_play_episode(event)
+            item = self.tree_widget.GetSelection()
+            if item.IsOk(): self.play_station(item)
+            else: self.play_last_station()
 
     def on_toggle_record(self, event):
         if self.player.is_recording():
@@ -501,12 +266,8 @@ class RadioWindow(wx.Frame):
                 wx.MessageBox("يجب تشغيل إذاعة أولاً لبدء التسجيل.", "خطأ", wx.OK | wx.ICON_ERROR)
                 return
 
-            if self.notebook.GetSelection() == 1:
-                wx.MessageBox("تسجيل البودكاست غير مدعوم حاليًا. هذه الميزة مخصصة لبث الراديو المباشر.", "معلومات", wx.OK | wx.ICON_INFORMATION)
-                return
-
-            item = self.tree_widget.GetSelection()
             station_name = "recording"
+            item = self.tree_widget.GetSelection()
             if item.IsOk():
                 station_name = self.tree_widget.GetItemText(item)
                 station_name = "".join(x for x in station_name if x.isalnum() or x in " _-").strip()
@@ -633,14 +394,14 @@ class RadioWindow(wx.Frame):
         about_text = f"""
         <html><body>
         <h3>Amwaj v{CURRENT_VERSION}</h3>
-        <p>تطبيق أمواج للاستماع إلى الإذاعات العربية والبودكاست.</p>
+        <p>تطبيق أمواج للاستماع إلى الإذاعات العربية.</p>
         <p><b>المطور:</b> errachedy</p>
-        <p><b>الميزات الجديدة في هذا الإصدار (v0.5):</b></p>
+        <p><b>الميزات الجديدة في هذا الإصدار (v0.4):</b></p>
         <ul>
-            <li>إضافة مدير بودكاست كامل.</li>
-            <li>إمكانية إضافة وحذف خلاصات البودكاست.</li>
-            <li>عرض وتشغيل حلقات البودكاست.</li>
-            <li>تنزيل الحلقات للاستماع بدون انترنت.</li>
+            <li>نظام مظاهر متقدم.</li>
+            <li>مؤثرات صوتية.</li>
+            <li>ميزة تسجيل البث.</li>
+            <li>مؤقت النوم.</li>
         </ul>
         </body></html>
         """
@@ -691,9 +452,5 @@ class RadioWindow(wx.Frame):
             wx.MessageBox(f"لا يمكن عرض ملف المساعدة: {e}", "خطأ", wx.OK | wx.ICON_ERROR)
 
     def on_close(self, event):
-        if self.downloader_thread and self.downloader_thread.is_alive():
-            wx.MessageBox("لا يمكن إغلاق البرنامج أثناء وجود تنزيل نشط. يرجى الانتظار حتى يكتمل التنزيل.", "تنزيل قيد التقدم", wx.OK | wx.ICON_WARNING)
-            return
-
         save_settings(self.settings)
         self.Destroy()
