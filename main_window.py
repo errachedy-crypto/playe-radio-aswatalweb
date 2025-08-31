@@ -61,9 +61,12 @@ class RadioWindow(wx.Frame):
         self.set_initial_volume()
         self._set_volume_and_ui(self.volume_slider.GetValue())
         self.apply_theme()
+        self.apply_sound_settings()
 
         wx.CallAfter(self.finish_setup)
         self.setup_shortcuts()
+
+        self.load_and_display_podcasts()
 
         self.Bind(wx.EVT_CLOSE, self.on_close)
 
