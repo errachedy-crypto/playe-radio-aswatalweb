@@ -2,9 +2,13 @@ import sys
 import os
 import logging
 import wx
+import vlc
 
 from log_formatter import CensoringFormatter
 from main_window import RadioWindow
+from sound_manager import SoundManager
+from splash_screen import SplashScreen
+from constants import CURRENT_VERSION
 
 def setup_logging():
     """Configures the logging system manually to use the custom formatter."""
@@ -29,12 +33,30 @@ def setup_logging():
 def main():
     """Main function to run the application."""
     setup_logging()
-    
     logging.info("Application starting...")
-
     app = wx.App(False)
-    
-    window = RadioWindow()
+
+    # Show splash screen
+    splash = SplashScreen(CURRENT_VERSION)
+    splash.Show()
+    wx.Yield() # Ensure splash screen is painted
+
+    # Initialize VLC and SoundManager
+    try:
+        vlc_instance = vlc.Instance()
+        sound_manager = SoundManager()
+        sound_manager.play("startup")
+    except Exception as e:
+        logging.critical(f"Failed to initialize VLC or SoundManager: {e}")
+        wx.MessageBox(f"فشل تهيئة مكونات الصوت الأساسية (VLC). لا يمكن تشغيل التطبيق.\n\nخطأ: {e}", "خطأ فادح", wx.OK | wx.ICON_ERROR)
+        return
+
+    # Wait for splash screen to finish
+    wx.Sleep(3)
+    splash.Destroy()
+
+    # Create and show the main window
+    window = RadioWindow(vlc_instance=vlc_instance, sound_manager=sound_manager)
     window.Show()
     
     app.MainLoop()

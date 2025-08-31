@@ -22,12 +22,14 @@ except (ImportError, OSError):
 
 
 class RadioWindow(wx.Frame):
-    def __init__(self):
+    def __init__(self, vlc_instance, sound_manager):
         super().__init__(None, title=f"Amwaj v{CURRENT_VERSION}", size=(400, 600))
 
+        self.vlc_instance = vlc_instance
+        self.sound_manager = sound_manager
+
         self.settings = load_settings()
-        self.player = Player()
-        self.sound_manager = SoundManager()
+        self.player = Player(self.vlc_instance)
         self.categories = []
 
         self.sleep_timer = wx.Timer(self)
@@ -70,7 +72,6 @@ class RadioWindow(wx.Frame):
     def finish_setup(self):
         try:
             logging.debug("Starting setup tasks...")
-            self.sound_manager.play("startup")
             self.load_stations()
             if self.settings.get("check_for_updates", True):
                 self.check_for_updates()
