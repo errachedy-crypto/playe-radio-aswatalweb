@@ -24,7 +24,7 @@ class SplashScreen(SplashScreen):
         del dc # End drawing
 
         super().__init__(bitmap,
-                         wx.SPLASH_CENTRE_ON_SCREEN | wx.SPLASH_TIMEOUT,
+                         wx.adv.SPLASH_CENTRE_ON_SCREEN | wx.adv.SPLASH_TIMEOUT,
                          3000, None, -1, style=wx.SIMPLE_BORDER | wx.STAY_ON_TOP)
 
         self.Bind(wx.EVT_CLOSE, self.on_close)
