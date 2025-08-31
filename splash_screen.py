@@ -19,7 +19,7 @@ class SplashScreen(SplashScreen):
 
         text = "جاري التحميل ..."
         text_width, text_height = dc.GetTextExtent(text)
-        dc.DrawText(text, (width - text_width) / 2, (height - text_height) / 2)
+        dc.DrawText(text, (width - text_width) // 2, (height - text_height) // 2)
 
         del dc # End drawing
 
