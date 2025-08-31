@@ -5,14 +5,44 @@ STATIONS_URL = "https://aswatalweb.com/radio/radio.json"
 
 # --- Themes ---
 THEMES = {
-    "light": {
+    "Light Mode": {
         "bg": "#FFFFFF",
         "text": "#000000",
         "btn_primary": "#F0F0F0",
     },
-    "dark": {
+    "Dark Mode": {
         "bg": "#2B2B2B",
         "text": "#FFFFFF",
         "btn_primary": "#555555",
+    },
+    "Modern Mode": {
+        "bg": "#4A90E2",
+        "text": "#FFFFFF",
+        "btn_primary": "#1A65B2",
+    },
+    "Natural Mode": {
+        "bg": "#C1E1C1",
+        "text": "#6A4F33",
+        "btn_primary": "#80C6A8",
+    },
+    "Futuristic Mode": {
+        "bg": "#2C3E50",
+        "text": "#00D2FF",
+        "btn_primary": "#00D2FF",
+    },
+    "Minimalistic Mode": {
+        "bg": "#FFFFFF",
+        "text": "#000000",
+        "btn_primary": "#D8D8D8",
+    },
+    "Heritage Mode": {
+        "bg": "#CD7F32",
+        "text": "#FFD700",
+        "btn_primary": "#C0392B",
+    },
+    "Glossy Black Mode": {
+        "bg": "#1A1A1A",
+        "text": "#FFFFFF",
+        "btn_primary": "#C0C0C0",
     }
 }

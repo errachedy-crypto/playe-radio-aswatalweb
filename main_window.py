@@ -405,8 +405,8 @@ class RadioWindow(wx.Frame):
             font.SetPointSize(wx.NORMAL_FONT.GetPointSize())
         self.SetFont(font)
 
-        theme_name = self.settings.get("theme", "light")
-        theme_colors = THEMES.get(theme_name, THEMES["light"])
+        theme_name = self.settings.get("theme", "Light Mode")
+        theme_colors = THEMES.get(theme_name, THEMES["Light Mode"])
 
         bg_colour = wx.Colour(theme_colors["bg"])
         fg_colour = wx.Colour(theme_colors["text"])
