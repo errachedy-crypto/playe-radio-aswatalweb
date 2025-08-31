@@ -8,11 +8,9 @@ class SoundManager:
         if vlc_instance is None:
             raise ValueError("A valid VLC instance must be provided.")
         self.vlc_instance = vlc_instance
-        # Use a separate player for sound effects to not interfere with main playback
         self.sfx_player = self.vlc_instance.media_player_new()
         self.enabled = True
 
-        # Sound URIs - using web-hosted sounds to avoid local file issues
         self.sounds = {
             "navigate": "https://www.soundjay.com/button/sounds/button-16.mp3",
             "play_station": "https://www.soundjay.com/button/sounds/button-7.mp3",

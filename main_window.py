@@ -3,8 +3,6 @@ import webbrowser
 import os
 import sys
 import wx
-import wx.html
-import re
 from datetime import datetime
 
 from constants import CURRENT_VERSION, UPDATE_URL, THEMES
@@ -14,12 +12,6 @@ from player import Player
 from settings_dialog import SettingsDialog
 from help_dialog import HelpDialog
 from sound_manager import SoundManager
-import database_manager as db
-
-try:
-    import vlc
-except (ImportError, FileNotFoundError):
-    vlc = None
 
 try:
     from comtypes import CLSCTX_ALL
@@ -31,7 +23,7 @@ except (ImportError, OSError):
 
 class RadioWindow(wx.Frame):
     def __init__(self, vlc_instance, sound_manager):
-        super().__init__(None, title=f"Amwaj v{CURRENT_VERSION}", size=(800, 600))
+        super().__init__(None, title=f"Amwaj v{CURRENT_VERSION}", size=(400, 600))
 
         self.vlc_instance = vlc_instance
         self.sound_manager = sound_manager
@@ -41,8 +33,6 @@ class RadioWindow(wx.Frame):
         self.categories = []
 
         self.sleep_timer = wx.Timer(self)
-
-        db.initialize_database()
 
         self.main_panel = wx.Panel(self)
         self.main_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -58,8 +48,6 @@ class RadioWindow(wx.Frame):
 
         wx.CallAfter(self.finish_setup)
         self.setup_shortcuts()
-
-        # self.load_and_display_podcasts() # Will be enabled in v0.5
 
         self.Bind(wx.EVT_CLOSE, self.on_close)
 
@@ -93,25 +81,19 @@ class RadioWindow(wx.Frame):
             wx.MessageBox(f"حدث خطأ أثناء تهيئة التطبيق:\n{e}", "خطأ في التهيئة", wx.OK | wx.ICON_ERROR)
 
     def setup_ui(self):
-        self.notebook = wx.Notebook(self.main_panel)
-        self.radio_panel = wx.Panel(self.notebook)
-        self.podcast_panel = wx.Panel(self.notebook)
+        self.panel = wx.Panel(self.main_panel)
 
-        self.notebook.AddPage(self.radio_panel, "الراديو")
-        # self.notebook.AddPage(self.podcast_panel, "البودكاست") # Will be enabled in v0.5
+        panel_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        self.main_sizer.Add(self.notebook, 1, wx.EXPAND)
-
-        # --- Radio Panel Layout ---
-        radio_sizer = wx.BoxSizer(wx.VERTICAL)
-        self.tree_widget = wx.TreeCtrl(self.radio_panel, style=wx.TR_DEFAULT_STYLE | wx.TR_HIDE_ROOT | wx.TR_HAS_BUTTONS)
-        radio_sizer.Add(self.tree_widget, 1, wx.EXPAND | wx.ALL, 5)
-        self.search_box = wx.TextCtrl(self.radio_panel, style=wx.TE_PROCESS_ENTER)
+        self.tree_widget = wx.TreeCtrl(self.panel, style=wx.TR_DEFAULT_STYLE | wx.TR_HIDE_ROOT | wx.TR_HAS_BUTTONS)
+        panel_sizer.Add(self.tree_widget, 1, wx.EXPAND | wx.ALL, 5)
+        self.search_box = wx.TextCtrl(self.panel, style=wx.TE_PROCESS_ENTER)
         self.search_box.SetHint("ابحث عن إذاعة...")
-        radio_sizer.Add(self.search_box, 0, wx.EXPAND | wx.ALL, 5)
-        self.radio_panel.SetSizer(radio_sizer)
+        panel_sizer.Add(self.search_box, 0, wx.EXPAND | wx.ALL, 5)
 
-        # --- Bottom Controls (Shared) ---
+        self.panel.SetSizer(panel_sizer)
+        self.main_sizer.Add(self.panel, 1, wx.EXPAND)
+
         button_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.play_stop_button = wx.Button(self.main_panel, label="تشغيل")
         button_sizer.Add(self.play_stop_button, 1, wx.EXPAND | wx.ALL, 5)
@@ -417,17 +399,21 @@ class RadioWindow(wx.Frame):
         bg_colour = wx.Colour(theme_colors["bg"])
         fg_colour = wx.Colour(theme_colors["text"])
         btn_colour = wx.Colour(theme_colors["btn_primary"])
-        panels_to_theme = [self.main_panel, self.radio_panel, self.podcast_panel]
+
+        # In v0.4, we only have one main panel to theme
+        panels_to_theme = [self.main_panel, self.panel]
+
         self.SetBackgroundColour(bg_colour)
         for panel in panels_to_theme:
-            panel.SetBackgroundColour(bg_colour)
-            panel.SetForegroundColour(fg_colour)
-            for widget in panel.GetChildren():
-                if not isinstance(widget, (wx.Notebook, wx.SplitterWindow)):
-                    widget.SetBackgroundColour(bg_colour)
-                    widget.SetForegroundColour(fg_colour)
-                if isinstance(widget, wx.Button):
-                    widget.SetBackgroundColour(btn_colour)
+            if panel:
+                panel.SetBackgroundColour(bg_colour)
+                panel.SetForegroundColour(fg_colour)
+                for widget in panel.GetChildren():
+                    if not isinstance(widget, (wx.Notebook, wx.SplitterWindow)):
+                        widget.SetBackgroundColour(bg_colour)
+                        widget.SetForegroundColour(fg_colour)
+                    if isinstance(widget, wx.Button):
+                        widget.SetBackgroundColour(btn_colour)
         self.main_panel.Refresh()
 
     def handle_player_error(self, event):
