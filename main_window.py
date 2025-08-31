@@ -59,7 +59,7 @@ class RadioWindow(wx.Frame):
         self.connect_signals()
 
         self.set_initial_volume()
-        self.adjust_volume(None)
+        self._set_volume_and_ui(self.volume_slider.GetValue())
         self.apply_theme()
 
         wx.CallAfter(self.finish_setup)
