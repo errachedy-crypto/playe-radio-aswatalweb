@@ -1,9 +1,10 @@
 import wx
+from wx.adv import SplashScreen
 
-class SplashScreen(wx.SplashScreen):
-    def __init__(self, version):
+class SplashScreen(SplashScreen):
+    def __init__(self):
         # Create a bitmap dynamically
-        width, height = 400, 200
+        width, height = 400, 100
         bitmap = wx.Bitmap(width, height)
 
         # Draw on the bitmap
@@ -12,16 +13,13 @@ class SplashScreen(wx.SplashScreen):
         dc.Clear()
 
         # Draw title
-        font_title = wx.Font(32, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
+        font_title = wx.Font(24, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
         dc.SetFont(font_title)
-        dc.SetTextForeground(wx.Colour("#4A90E2")) # Using a color from the "Modern Mode" theme
-        dc.DrawText("Amwaj Radio", 100, 60)
+        dc.SetTextForeground(wx.Colour("#4A90E2"))
 
-        # Draw version
-        font_version = wx.Font(12, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
-        dc.SetFont(font_version)
-        dc.SetTextForeground(wx.BLACK)
-        dc.DrawText(f"Version {version}", 160, 110)
+        text = "جاري التحميل ..."
+        text_width, text_height = dc.GetTextExtent(text)
+        dc.DrawText(text, (width - text_width) / 2, (height - text_height) / 2)
 
         del dc # End drawing
 

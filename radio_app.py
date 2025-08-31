@@ -37,7 +37,7 @@ def main():
     app = wx.App(False)
 
     # Show splash screen
-    splash = SplashScreen(CURRENT_VERSION)
+    splash = SplashScreen()
     splash.Show()
     wx.Yield() # Ensure splash screen is painted
 
