@@ -37,22 +37,21 @@ class Player:
             logging.error("Cannot record: no stream is currently playing.")
             return False
 
+        # Stop current playback before starting a recording stream
+        self.stop()
+
         sout_options = f'#transcode{{acodec=mp3,ab=128}}:std{{access=file,mux=ts,dst="{output_path}"}}'
         media = self.vlc_instance.media_new(self.current_url, f'sout={sout_options}', 'sout-keep')
 
-        # Create a new player instance for recording to not interfere with the main player
-        recorder_player = self.vlc_instance.media_player_new()
-        recorder_player.set_media(media)
-        recorder_player.play()
+        self.vlc_player.set_media(media)
+        self.vlc_player.play()
 
         self.is_rec = True
-        self.recorder_player = recorder_player # Store the recorder player instance
         logging.info(f"Started recording to {output_path}")
         return True
 
     def stop_recording(self):
-        if hasattr(self, 'recorder_player') and self.recorder_player.is_playing():
-            self.recorder_player.stop()
+        self.stop() # Stopping the player will stop the recording
         self.is_rec = False
         logging.info("Stopped recording.")
 

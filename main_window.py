@@ -426,12 +426,19 @@ class RadioWindow(wx.Frame):
 
 
     def show_about_dialog(self, event):
-        about_text = f"""
-        <b>Amwaj</b><br>
-        الإصدار: {CURRENT_VERSION}<br>
-        المطور: errachedy<br><br>
-        الميزات الجديدة: استماع إلى الإذاعات العربية.
-        """
+        about_text = f"""Amwaj Radio v{CURRENT_VERSION}
+
+تطبيق أمواج للاستماع إلى الإذاعات العربية.
+
+الميزات الجديدة في هذا الإصدار:
+- نظام مظاهر متقدم
+- مؤثرات صوتية
+- ميزة تسجيل البث
+- مؤقت النوم
+- تحسينات على الاستقرار وإصلاح الأخطاء
+
+المطور: errachedy
+"""
         wx.MessageBox(about_text, "حول البرنامج", wx.OK | wx.ICON_INFORMATION)
 
     def apply_theme(self):
