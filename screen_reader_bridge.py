@@ -25,17 +25,22 @@ class ScreenReaderBridge:
         logging.info(f"Screen reader announcements have been {'enabled' if enabled else 'disabled'}.")
 
     def speak(self, text):
-        """Speak the given text using the screen reader if available and enabled."""
+        """
+        Speak the given text using the screen reader.
+        Returns True on success, False on failure.
+        """
         if not self.enabled or not self.nvda_available:
-            return
+            return False
 
         try:
             # Cancel any previous speech to avoid overlap
             nvdaControllerClient.cancel()
             nvdaControllerClient.speakText(text)
             logging.debug(f"Sent to screen reader: '{text}'")
+            return True
         except Exception as e:
             logging.error(f"Failed to send text to screen reader: {e}")
+            return False
 
     def __del__(self):
         # Uninitialize the client when the object is destroyed

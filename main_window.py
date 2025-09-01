@@ -282,14 +282,18 @@ class RadioWindow(wx.Frame):
         self.settings["last_station_name"] = station_name
         self.player.play(url_string)
         self.now_playing_label.SetLabel(f"التشغيل الحالي: {station_name}")
-        self.screen_reader.speak(f"تشغيل {station_name}")
+        spoken = self.screen_reader.speak(f"تشغيل {station_name}")
+        if not spoken:
+            self.GetStatusBar().SetStatusText(f"التشغيل الحالي: {station_name}")
         self.play_stop_button.SetLabel('إيقاف')
 
     def stop_station(self):
         self.player.stop()
         self.sound_manager.play("stop_station")
         self.now_playing_label.SetLabel("التشغيل الحالي: -")
-        self.screen_reader.speak("إيقاف")
+        spoken = self.screen_reader.speak("إيقاف")
+        if not spoken:
+            self.GetStatusBar().SetStatusText("تم إيقاف التشغيل")
         self.play_stop_button.SetLabel('تشغيل')
 
     def toggle_play_stop(self, event):
@@ -307,7 +311,9 @@ class RadioWindow(wx.Frame):
         self.player.set_volume(volume)
         self.settings["volume"] = volume
         if announce:
-            self.screen_reader.speak(f"مستوى الصوت {volume} بالمئة")
+            spoken = self.screen_reader.speak(f"مستوى الصوت {volume} بالمئة")
+            if not spoken:
+                self.GetStatusBar().SetStatusText(f"مستوى الصوت: {volume}%")
 
     def adjust_volume(self, event):
         volume = self.volume_slider.GetValue()
