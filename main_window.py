@@ -12,6 +12,7 @@ from player import Player
 from settings_dialog import SettingsDialog
 from help_dialog import HelpDialog
 from sound_manager import SoundManager
+from popup_window import TimedPopup
 
 try:
     from comtypes import CLSCTX_ALL
@@ -278,14 +279,14 @@ class RadioWindow(wx.Frame):
         self.settings["last_station_name"] = station_name
         self.player.play(url_string)
         self.now_playing_label.SetLabel(f"التشغيل الحالي: {station_name}")
-        self.GetStatusBar().SetStatusText(f"التشغيل الحالي: {station_name}")
+        self.show_announcement_popup(f"تشغيل: {station_name}")
         self.play_stop_button.SetLabel('إيقاف')
 
     def stop_station(self):
         self.player.stop()
         self.sound_manager.play("stop_station")
         self.now_playing_label.SetLabel("التشغيل الحالي: -")
-        self.GetStatusBar().SetStatusText("تم إيقاف التشغيل")
+        self.show_announcement_popup("إيقاف التشغيل")
         self.play_stop_button.SetLabel('تشغيل')
 
     def toggle_play_stop(self, event):
@@ -298,12 +299,15 @@ class RadioWindow(wx.Frame):
             else:
                 self.play_last_station()
 
+    def show_announcement_popup(self, message):
+        popup = TimedPopup(self, message)
+
     def _set_volume(self, volume, announce=True):
         self.volume_slider.SetValue(volume)
         self.player.set_volume(volume)
         self.settings["volume"] = volume
         if announce:
-            self.GetStatusBar().SetStatusText(f"مستوى الصوت: {volume}%")
+            self.show_announcement_popup(f"مستوى الصوت: {volume}%")
 
     def adjust_volume(self, event):
         volume = self.volume_slider.GetValue()
