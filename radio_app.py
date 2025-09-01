@@ -7,7 +7,6 @@ import vlc
 from log_formatter import CensoringFormatter
 from main_window import RadioWindow
 from sound_manager import SoundManager
-from screen_reader_bridge import ScreenReaderBridge
 from splash_screen import SplashScreen
 from constants import CURRENT_VERSION
 
@@ -46,8 +45,6 @@ def main():
     try:
         vlc_instance = vlc.Instance()
         sound_manager = SoundManager()
-        screen_reader = ScreenReaderBridge()
-        # Use sound manager for startup sound, not TTS
         sound_manager.play("startup")
     except Exception as e:
         logging.critical(f"Failed to initialize components: {e}")
@@ -59,7 +56,7 @@ def main():
     splash.Destroy()
 
     # Create and show the main window
-    window = RadioWindow(vlc_instance=vlc_instance, sound_manager=sound_manager, screen_reader=screen_reader)
+    window = RadioWindow(vlc_instance=vlc_instance, sound_manager=sound_manager)
     window.Show()
     
     app.MainLoop()

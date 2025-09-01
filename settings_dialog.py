@@ -35,10 +35,6 @@ class SettingsDialog(wx.Dialog):
         self.sound_effects_checkbox.SetValue(self.settings.get("sound_effects_enabled", True))
         self.vbox.Add(self.sound_effects_checkbox, flag=wx.LEFT | wx.TOP, border=10)
 
-        self.screen_reader_checkbox = wx.CheckBox(self.panel, label="تفعيل إعلانات قارئ الشاشة")
-        self.screen_reader_checkbox.SetValue(self.settings.get("screen_reader_enabled", True))
-        self.vbox.Add(self.screen_reader_checkbox, flag=wx.LEFT | wx.TOP, border=10)
-
         button_sizer = wx.BoxSizer(wx.HORIZONTAL)
         ok_button = wx.Button(self.panel, id=wx.ID_OK, label="موافق")
         cancel_button = wx.Button(self.panel, id=wx.ID_CANCEL, label="إلغاء")
@@ -56,7 +52,6 @@ class SettingsDialog(wx.Dialog):
         self.settings["theme"] = self.theme_choice.GetStringSelection()
         self.settings["large_font"] = self.font_size_checkbox.GetValue()
         self.settings["sound_effects_enabled"] = self.sound_effects_checkbox.GetValue()
-        self.settings["screen_reader_enabled"] = self.screen_reader_checkbox.GetValue()
         self.EndModal(wx.ID_OK)
 
     def get_settings(self):
