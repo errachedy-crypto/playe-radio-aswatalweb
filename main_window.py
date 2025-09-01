@@ -42,7 +42,7 @@ class RadioWindow(wx.Frame):
         self.connect_signals()
 
         self.set_initial_volume()
-        self.adjust_volume(None)
+        # self.adjust_volume(None) # No longer needed, set_initial_volume handles it
         self.apply_theme()
         self.apply_sound_settings()
 
@@ -52,6 +52,7 @@ class RadioWindow(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self.on_close)
 
     def set_initial_volume(self):
+        initial_volume = self.settings.get("volume", 50)
         if PYCAW_AVAILABLE:
             try:
                 devices = AudioUtilities.GetSpeakers()
@@ -59,14 +60,12 @@ class RadioWindow(wx.Frame):
                 volume = interface.QueryInterface(IAudioEndpointVolume)
                 # Volume scalar is from 0.0 to 1.0, we need 0 to 100
                 system_volume = int(volume.GetMasterVolumeLevelScalar() * 100)
-                self.volume_slider.SetValue(system_volume)
-                self.settings['volume'] = system_volume
-                return
+                initial_volume = system_volume
             except Exception as e:
                 logging.warning(f"Could not set initial volume from system: {e}")
 
-        # Fallback to saved settings or default
-        self.volume_slider.SetValue(self.settings.get("volume", 50))
+        # Set volume using the new helper method
+        self._set_volume(initial_volume)
 
 
     def finish_setup(self):
@@ -297,16 +296,23 @@ class RadioWindow(wx.Frame):
             else:
                 self.play_last_station()
 
-    def adjust_volume(self, event):
-        volume = self.volume_slider.GetValue()
+    def _set_volume(self, volume):
+        self.volume_slider.SetValue(volume)
         self.player.set_volume(volume)
         self.settings["volume"] = volume
+        self.GetStatusBar().SetStatusText(f"مستوى الصوت: {volume}%")
+
+    def adjust_volume(self, event):
+        volume = self.volume_slider.GetValue()
+        self._set_volume(volume)
 
     def lower_volume(self, event):
-        self.volume_slider.SetValue(max(self.volume_slider.GetValue() - 10, 0))
+        new_volume = max(self.volume_slider.GetValue() - 10, 0)
+        self._set_volume(new_volume)
 
     def raise_volume(self, event):
-        self.volume_slider.SetValue(min(self.volume_slider.GetValue() + 10, 100))
+        new_volume = min(self.volume_slider.GetValue() + 10, 100)
+        self._set_volume(new_volume)
 
     def toggle_mute(self, event):
         self.player.toggle_mute()
