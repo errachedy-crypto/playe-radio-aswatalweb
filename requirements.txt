@@ -3,3 +3,4 @@ pycaw
 requests
 packaging
 python-vlc
+nvda-controller-client-python

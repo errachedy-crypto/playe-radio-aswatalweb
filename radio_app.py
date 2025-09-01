@@ -7,6 +7,7 @@ import vlc
 from log_formatter import CensoringFormatter
 from main_window import RadioWindow
 from sound_manager import SoundManager
+from screen_reader_bridge import ScreenReaderBridge
 from splash_screen import SplashScreen
 from constants import CURRENT_VERSION
 
@@ -41,14 +42,16 @@ def main():
     splash.Show()
     wx.Yield() # Ensure splash screen is painted
 
-    # Initialize VLC and SoundManager
+    # Initialize components
     try:
         vlc_instance = vlc.Instance()
         sound_manager = SoundManager()
+        screen_reader = ScreenReaderBridge()
+        # Use sound manager for startup sound, not TTS
         sound_manager.play("startup")
     except Exception as e:
-        logging.critical(f"Failed to initialize VLC or SoundManager: {e}")
-        wx.MessageBox(f"فشل تهيئة مكونات الصوت الأساسية (VLC). لا يمكن تشغيل التطبيق.\n\nخطأ: {e}", "خطأ فادح", wx.OK | wx.ICON_ERROR)
+        logging.critical(f"Failed to initialize components: {e}")
+        wx.MessageBox(f"فشل تهيئة المكونات الأساسية. لا يمكن تشغيل التطبيق.\n\nخطأ: {e}", "خطأ فادح", wx.OK | wx.ICON_ERROR)
         return
 
     # Wait for splash screen to finish
@@ -56,7 +59,7 @@ def main():
     splash.Destroy()
 
     # Create and show the main window
-    window = RadioWindow(vlc_instance=vlc_instance, sound_manager=sound_manager)
+    window = RadioWindow(vlc_instance=vlc_instance, sound_manager=sound_manager, screen_reader=screen_reader)
     window.Show()
     
     app.MainLoop()

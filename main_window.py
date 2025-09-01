@@ -21,12 +21,15 @@ except (ImportError, OSError):
     PYCAW_AVAILABLE = False
 
 
+from screen_reader_bridge import ScreenReaderBridge
+
 class RadioWindow(wx.Frame):
-    def __init__(self, vlc_instance, sound_manager):
+    def __init__(self, vlc_instance, sound_manager, screen_reader):
         super().__init__(None, title=f"Amwaj v{CURRENT_VERSION}", size=(400, 600))
 
         self.vlc_instance = vlc_instance
         self.sound_manager = sound_manager
+        self.screen_reader = screen_reader
 
         self.settings = load_settings()
         self.player = Player(self.vlc_instance)
@@ -45,6 +48,7 @@ class RadioWindow(wx.Frame):
         # self.adjust_volume(None) # No longer needed, set_initial_volume handles it
         self.apply_theme()
         self.apply_sound_settings()
+        self.apply_screen_reader_settings()
 
         wx.CallAfter(self.finish_setup)
         self.setup_shortcuts()
@@ -278,12 +282,14 @@ class RadioWindow(wx.Frame):
         self.settings["last_station_name"] = station_name
         self.player.play(url_string)
         self.now_playing_label.SetLabel(f"التشغيل الحالي: {station_name}")
+        self.screen_reader.speak(f"تشغيل {station_name}")
         self.play_stop_button.SetLabel('إيقاف')
 
     def stop_station(self):
         self.player.stop()
         self.sound_manager.play("stop_station")
         self.now_playing_label.SetLabel("التشغيل الحالي: -")
+        self.screen_reader.speak("إيقاف")
         self.play_stop_button.SetLabel('تشغيل')
 
     def toggle_play_stop(self, event):
@@ -296,11 +302,12 @@ class RadioWindow(wx.Frame):
             else:
                 self.play_last_station()
 
-    def _set_volume(self, volume):
+    def _set_volume(self, volume, announce=True):
         self.volume_slider.SetValue(volume)
         self.player.set_volume(volume)
         self.settings["volume"] = volume
-        self.GetStatusBar().SetStatusText(f"مستوى الصوت: {volume}%")
+        if announce:
+            self.screen_reader.speak(f"مستوى الصوت {volume} بالمئة")
 
     def adjust_volume(self, event):
         volume = self.volume_slider.GetValue()
@@ -416,6 +423,10 @@ class RadioWindow(wx.Frame):
         enabled = self.settings.get("sound_effects_enabled", True)
         self.sound_manager.set_enabled(enabled)
 
+    def apply_screen_reader_settings(self):
+        enabled = self.settings.get("screen_reader_enabled", True)
+        self.screen_reader.set_enabled(enabled)
+
     def open_settings_dialog(self, event):
         dialog = SettingsDialog(self.settings, self)
         if dialog.ShowModal() == wx.ID_OK:
@@ -426,6 +437,7 @@ class RadioWindow(wx.Frame):
             save_settings(self.settings)
             self.apply_theme()
             self.apply_sound_settings()
+            self.apply_screen_reader_settings()
             if theme_changed or font_changed:
                 wx.MessageBox("بعض الإعدادات تتطلب إعادة تشغيل التطبيق لتصبح سارية المفعول.", "الإعدادات", wx.OK | wx.ICON_INFORMATION)
         dialog.Destroy()
