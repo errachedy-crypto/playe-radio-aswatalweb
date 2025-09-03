@@ -486,12 +486,6 @@ class RadioWindow(wx.Frame):
         bg_colour = wx.Colour(theme_colors["bg"])
         fg_colour = wx.Colour(theme_colors["text"])
 
-        # Apply theme to the main panel and notebook
-        self.panel.SetBackgroundColour(bg_colour)
-        self.panel.SetForegroundColour(fg_colour)
-        self.notebook.SetBackgroundColour(bg_colour)
-        self.notebook.SetForegroundColour(fg_colour)
-
         # Apply theme to panels within the notebook
         self.radio_panel.SetBackgroundColour(bg_colour)
         self.radio_panel.SetForegroundColour(fg_colour)
