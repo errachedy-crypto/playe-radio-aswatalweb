@@ -2,6 +2,7 @@ import logging
 import webbrowser
 import os
 import sys
+from urllib.parse import urlencode
 from datetime import datetime
 import wx
 
@@ -527,16 +528,26 @@ class RadioWindow(wx.Frame):
                 wx.MessageBox("اسم الإذاعة ورابط البث حقول إلزامية.", "خطأ", wx.OK | wx.ICON_ERROR)
                 return
 
-            suggestion_text = f'''الرجاء نسخ هذا النص وإرساله إلى المطور:
+            # Construct the email body
+            body = f"""
+تم اقتراح المحطة التالية عبر تطبيق أمواج:
 
 اسم الإذاعة: {values["station_name"]}
 رابط البث: {values["stream_url"]}
 البلد: {values["country"]}
-البريد الإلكتروني: {values["email"]}
-الموقع الإلكتروني: {values["website"]}
-'''
+البريد الإلكتروني للمقترح: {values["email"]}
+الموقع الإلكتروني للمحطة: {values["website"]}
+"""
 
-            wx.MessageBox(suggestion_text.strip(), "اقتراح إذاعة", wx.OK | wx.ICON_INFORMATION)
+            # URL-encode the subject and body
+            params = urlencode({
+                "subject": "اقتراح إذاعة جديد لتطبيق أمواج",
+                "body": body.strip()
+            })
+
+            # Create and open the mailto link
+            mailto_link = f"mailto:errachedy@gmail.com?{params}"
+            webbrowser.open(mailto_link)
 
         dialog.Destroy()
 
