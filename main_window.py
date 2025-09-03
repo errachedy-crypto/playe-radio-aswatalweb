@@ -11,6 +11,7 @@ from threads import UpdateChecker, StationLoader
 from player import Player
 from settings_dialog import SettingsDialog
 from help_dialog import HelpDialog
+from suggest_station_dialog import SuggestStationDialog
 from sound_manager import SoundManager
 from popup_window import TimedPopup
 
@@ -218,6 +219,10 @@ class RadioWindow(wx.Frame):
         help_menu = wx.Menu()
         help_item = help_menu.Append(self.id_help, "عرض دليل المساعدة", "Show help")
         self.Bind(wx.EVT_MENU, self.show_help_dialog, help_item)
+
+        suggest_item = help_menu.Append(wx.ID_ANY, "اقتراح إذاعة...", "Suggest a new station")
+        self.Bind(wx.EVT_MENU, self.show_suggest_station_dialog, suggest_item)
+
         menu_bar.Append(help_menu, "&المساعدة")
 
         self.SetMenuBar(menu_bar)
@@ -513,6 +518,27 @@ class RadioWindow(wx.Frame):
             logging.error(f"Could not show help dialog: {e}")
             wx.MessageBox(f"لا يمكن عرض ملف المساعدة: {e}", "خطأ", wx.OK | wx.ICON_ERROR)
 
+    def show_suggest_station_dialog(self, event):
+        dialog = SuggestStationDialog(self)
+        if dialog.ShowModal() == wx.ID_OK:
+            values = dialog.get_values()
+
+            if not values["station_name"] or not values["stream_url"]:
+                wx.MessageBox("اسم الإذاعة ورابط البث حقول إلزامية.", "خطأ", wx.OK | wx.ICON_ERROR)
+                return
+
+            suggestion_text = f'''الرجاء نسخ هذا النص وإرساله إلى المطور:
+
+اسم الإذاعة: {values["station_name"]}
+رابط البث: {values["stream_url"]}
+البلد: {values["country"]}
+البريد الإلكتروني: {values["email"]}
+الموقع الإلكتروني: {values["website"]}
+'''
+
+            wx.MessageBox(suggestion_text.strip(), "اقتراح إذاعة", wx.OK | wx.ICON_INFORMATION)
+
+        dialog.Destroy()
 
     def on_close(self, event):
         save_settings(self.settings)
