@@ -224,6 +224,11 @@ class RadioWindow(wx.Frame):
         suggest_item = help_menu.Append(wx.ID_ANY, "اقتراح إذاعة...", "Suggest a new station")
         self.Bind(wx.EVT_MENU, self.show_suggest_station_dialog, suggest_item)
 
+        help_menu.AppendSeparator()
+
+        github_item = help_menu.Append(wx.ID_ANY, "الإبلاغ عن مشكلة على GitHub", "Report an issue on GitHub")
+        self.Bind(wx.EVT_MENU, self.open_github_issues_page, github_item)
+
         menu_bar.Append(help_menu, "&المساعدة")
 
         self.SetMenuBar(menu_bar)
@@ -550,6 +555,10 @@ class RadioWindow(wx.Frame):
             webbrowser.open(mailto_link)
 
         dialog.Destroy()
+
+    def open_github_issues_page(self, event):
+        url = "https://github.com/errachedy-crypto/playe-radio-aswatalweb/issues/new"
+        webbrowser.open(url)
 
     def on_close(self, event):
         save_settings(self.settings)
