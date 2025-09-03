@@ -38,12 +38,24 @@ class RadioWindow(wx.Frame):
         self.panel = wx.Panel(self)
         self.main_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        self.setup_ui()
+        # Create the notebook
+        self.notebook = wx.Notebook(self.panel)
+        self.main_sizer.Add(self.notebook, 1, wx.EXPAND)
+
+        # Create panels for the tabs
+        self.radio_panel = wx.Panel(self.notebook)
+        self.news_panel = wx.Panel(self.notebook)
+
+        self.notebook.AddPage(self.radio_panel, "الراديو")
+        self.notebook.AddPage(self.news_panel, "الأخبار")
+
+        self.setup_radio_ui() # Refactored UI setup
+        self.setup_news_ui() # Placeholder for news UI
+
         self.setup_menu()
         self.connect_signals()
 
         self.set_initial_volume()
-        # self.adjust_volume(None) # No longer needed, set_initial_volume handles it
         self.apply_theme()
         self.apply_sound_settings()
 
@@ -51,6 +63,8 @@ class RadioWindow(wx.Frame):
         self.setup_shortcuts()
 
         self.Bind(wx.EVT_CLOSE, self.on_close)
+        self.panel.SetSizer(self.main_sizer)
+
 
     def set_initial_volume(self):
         initial_volume = self.settings.get("volume", 50)
@@ -59,14 +73,11 @@ class RadioWindow(wx.Frame):
                 devices = AudioUtilities.GetSpeakers()
                 interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
                 volume = interface.QueryInterface(IAudioEndpointVolume)
-                # Volume scalar is from 0.0 to 1.0, we need 0 to 100
                 system_volume = int(volume.GetMasterVolumeLevelScalar() * 100)
                 initial_volume = system_volume
             except Exception as e:
                 logging.warning(f"Could not set initial volume from system: {e}")
-
-        # Set volume using the new helper method
-        self._set_volume(initial_volume)
+        self._set_volume(initial_volume, announce=False)
 
 
     def finish_setup(self):
@@ -83,55 +94,63 @@ class RadioWindow(wx.Frame):
             logging.error(f"Error during setup: {e}")
             wx.MessageBox(f"حدث خطأ أثناء تهيئة التطبيق:\n{e}", "خطأ في التهيئة", wx.OK | wx.ICON_ERROR)
 
-    def setup_ui(self):
+    def setup_radio_ui(self):
+        radio_sizer = wx.BoxSizer(wx.VERTICAL)
+
         # Tree Widget
-        self.tree_widget = wx.TreeCtrl(self.panel, style=wx.TR_DEFAULT_STYLE | wx.TR_HIDE_ROOT | wx.TR_HAS_BUTTONS)
-        self.main_sizer.Add(self.tree_widget, 1, wx.EXPAND | wx.ALL, 5)
+        self.tree_widget = wx.TreeCtrl(self.radio_panel, style=wx.TR_DEFAULT_STYLE | wx.TR_HIDE_ROOT | wx.TR_HAS_BUTTONS)
+        radio_sizer.Add(self.tree_widget, 1, wx.EXPAND | wx.ALL, 5)
 
         # Search Box
-        self.search_box = wx.TextCtrl(self.panel, style=wx.TE_PROCESS_ENTER)
+        self.search_box = wx.TextCtrl(self.radio_panel, style=wx.TE_PROCESS_ENTER)
         self.search_box.SetHint("ابحث عن إذاعة...")
-        self.main_sizer.Add(self.search_box, 0, wx.EXPAND | wx.ALL, 5)
+        radio_sizer.Add(self.search_box, 0, wx.EXPAND | wx.ALL, 5)
 
         # Buttons
         button_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.play_stop_button = wx.Button(self.panel, label="تشغيل")
+        self.play_stop_button = wx.Button(self.radio_panel, label="تشغيل")
         button_sizer.Add(self.play_stop_button, 1, wx.EXPAND | wx.ALL, 5)
-        self.record_button = wx.Button(self.panel, label="تسجيل")
+        self.record_button = wx.Button(self.radio_panel, label="تسجيل")
         button_sizer.Add(self.record_button, 1, wx.EXPAND | wx.ALL, 5)
-        self.main_sizer.Add(button_sizer, 0, wx.EXPAND)
+        radio_sizer.Add(button_sizer, 0, wx.EXPAND)
 
         # Volume
         volume_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        volume_label = wx.StaticText(self.panel, label="مستوى الصوت:")
-        self.volume_slider = wx.Slider(self.panel, value=50, minValue=0, maxValue=100)
+        volume_label = wx.StaticText(self.radio_panel, label="مستوى الصوت:")
+        self.volume_slider = wx.Slider(self.radio_panel, value=50, minValue=0, maxValue=100)
         volume_sizer.Add(volume_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
         volume_sizer.Add(self.volume_slider, 1, wx.EXPAND | wx.ALL, 5)
-        self.main_sizer.Add(volume_sizer, 0, wx.EXPAND)
+        radio_sizer.Add(volume_sizer, 0, wx.EXPAND)
 
         # Timer
         timer_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        timer_label = wx.StaticText(self.panel, label="مؤقت النوم:")
+        timer_label = wx.StaticText(self.radio_panel, label="مؤقت النوم:")
         self.timer_options = ["إيقاف", "15 دقيقة", "30 دقيقة", "60 دقيقة", "90 دقيقة"]
-        self.sleep_timer_choice = wx.Choice(self.panel, choices=self.timer_options)
+        self.sleep_timer_choice = wx.Choice(self.radio_panel, choices=self.timer_options)
         self.sleep_timer_choice.SetSelection(0)
         timer_sizer.Add(timer_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
         timer_sizer.Add(self.sleep_timer_choice, 1, wx.EXPAND | wx.ALL, 5)
-        self.main_sizer.Add(timer_sizer, 0, wx.EXPAND)
+        radio_sizer.Add(timer_sizer, 0, wx.EXPAND)
 
         # Settings button
-        settings_button = wx.Button(self.panel, label="الإعدادات")
-        self.main_sizer.Add(settings_button, 0, wx.EXPAND | wx.ALL, 5)
+        settings_button = wx.Button(self.radio_panel, label="الإعدادات")
+        radio_sizer.Add(settings_button, 0, wx.EXPAND | wx.ALL, 5)
         self.Bind(wx.EVT_BUTTON, self.open_settings_dialog, settings_button)
 
-
         # Now Playing
-        self.now_playing_label = wx.StaticText(self.panel, label="التشغيل الحالي: -", style=wx.ALIGN_CENTER)
-        self.main_sizer.Add(self.now_playing_label, 0, wx.EXPAND | wx.ALL, 5)
+        self.now_playing_label = wx.StaticText(self.radio_panel, label="التشغيل الحالي: -", style=wx.ALIGN_CENTER)
+        radio_sizer.Add(self.now_playing_label, 0, wx.EXPAND | wx.ALL, 5)
 
         self.CreateStatusBar()
+        self.radio_panel.SetSizer(radio_sizer)
 
-        self.panel.SetSizer(self.main_sizer)
+    def setup_news_ui(self):
+        # This will be filled in a later step
+        news_sizer = wx.BoxSizer(wx.VERTICAL)
+        label = wx.StaticText(self.news_panel, label="تبويب الأخبار سيكتمل قريباً...")
+        news_sizer.Add(label, 0, wx.ALL | wx.ALIGN_CENTER, 20)
+        self.news_panel.SetSizer(news_sizer)
+
 
     def connect_signals(self):
         self.Bind(wx.EVT_BUTTON, self.toggle_play_stop, self.play_stop_button)
@@ -177,7 +196,6 @@ class RadioWindow(wx.Frame):
             item = self.tree_widget.GetSelection()
             if item.IsOk():
                 station_name = self.tree_widget.GetItemText(item)
-                # Sanitize station name for filename
                 station_name = "".join(x for x in station_name if x.isalnum() or x in " _-").strip()
 
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -468,16 +486,26 @@ class RadioWindow(wx.Frame):
         bg_colour = wx.Colour(theme_colors["bg"])
         fg_colour = wx.Colour(theme_colors["text"])
 
+        # Apply theme to the main panel and notebook
         self.panel.SetBackgroundColour(bg_colour)
         self.panel.SetForegroundColour(fg_colour)
+        self.notebook.SetBackgroundColour(bg_colour)
+        self.notebook.SetForegroundColour(fg_colour)
 
-        for widget in self.panel.GetChildren():
-            if isinstance(widget, (wx.StaticText, wx.CheckBox, wx.RadioBox, wx.TextCtrl, wx.Choice)):
-                widget.SetBackgroundColour(bg_colour)
-                widget.SetForegroundColour(fg_colour)
-            elif isinstance(widget, wx.Button):
-                # Buttons might need special handling depending on the OS
-                pass
+        # Apply theme to panels within the notebook
+        self.radio_panel.SetBackgroundColour(bg_colour)
+        self.radio_panel.SetForegroundColour(fg_colour)
+        self.news_panel.SetBackgroundColour(bg_colour)
+        self.news_panel.SetForegroundColour(fg_colour)
+
+        # Apply theme to child widgets
+        for panel in [self.radio_panel, self.news_panel]:
+            for widget in panel.GetChildren():
+                if isinstance(widget, (wx.StaticText, wx.CheckBox, wx.RadioBox, wx.TextCtrl, wx.Choice)):
+                    widget.SetBackgroundColour(bg_colour)
+                    widget.SetForegroundColour(fg_colour)
+                elif isinstance(widget, wx.Button):
+                    pass # Buttons might need special handling
 
         self.tree_widget.SetBackgroundColour(bg_colour)
         self.tree_widget.SetForegroundColour(fg_colour)
