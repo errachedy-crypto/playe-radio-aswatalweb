@@ -6,12 +6,25 @@ FEEDS_FILE = os.path.join(os.path.expanduser("~"), "stv_radio_rss_feeds.json")
 
 class RSSManager:
     def __init__(self):
-        self._feeds = self._load_feeds()
+        self._feeds = self._load_or_create_feeds()
 
-    def _load_feeds(self):
-        """Loads the list of RSS feeds from the JSON file."""
+    def _load_or_create_feeds(self):
+        """Loads feeds from file, or creates a default list if the file doesn't exist."""
         if not os.path.exists(FEEDS_FILE):
-            return []
+            print("Feeds file not found. Creating a default list.")
+            default_feeds = [
+                "https://www.aljazeera.net/aljazeerarss/rss.xml",
+                "https://feeds.bbci.co.uk/arabic/rss.xml",
+                "https://www.skynewsarabia.com/rss/all.xml",
+                "https://www.alarabiya.net/.mrss/ar.xml"
+            ]
+            try:
+                with open(FEEDS_FILE, "w", encoding="utf-8") as f:
+                    json.dump(default_feeds, f, ensure_ascii=False, indent=4)
+            except IOError:
+                pass
+            return default_feeds
+
         try:
             with open(FEEDS_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
@@ -19,7 +32,7 @@ class RSSManager:
             return []
 
     def _save_feeds(self):
-        """Saves the list of RSS feeds to the JSON file."""
+        """Saves the current list of RSS feeds to the JSON file."""
         try:
             with open(FEEDS_FILE, "w", encoding="utf-8") as f:
                 json.dump(self._feeds, f, ensure_ascii=False, indent=4)
@@ -51,7 +64,6 @@ class RSSManager:
         try:
             parsed_feed = feedparser.parse(feed_url)
             if parsed_feed.bozo:
-                # bozo is True if the feed is not well-formed
                 print(f"Warning: Feed '{feed_url}' may be malformed. Error: {parsed_feed.bozo_exception}")
 
             articles = []
