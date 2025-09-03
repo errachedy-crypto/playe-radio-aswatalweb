@@ -13,10 +13,18 @@ class RSSManager:
         if not os.path.exists(FEEDS_FILE):
             print("Feeds file not found. Creating a default list.")
             default_feeds = [
+                # أخبار
                 "https://www.aljazeera.net/aljazeerarss/rss.xml",
                 "https://feeds.bbci.co.uk/arabic/rss.xml",
                 "https://www.skynewsarabia.com/rss/all.xml",
-                "https://www.alarabiya.net/.mrss/ar.xml"
+                "https://www.alarabiya.net/.mrss/ar.xml",
+
+                # تقنية
+                "https://www.tech-wd.com/feed/",
+                "https://www.unlimit-tech.com/feed/",
+
+                # رياضة
+                "https://www.kooora.com/rss/"
             ]
             try:
                 with open(FEEDS_FILE, "w", encoding="utf-8") as f:
