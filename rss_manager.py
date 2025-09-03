@@ -6,32 +6,38 @@ FEEDS_FILE = os.path.join(os.path.expanduser("~"), "stv_radio_rss_feeds.json")
 
 class RSSManager:
     def __init__(self):
-        self._feeds = self._load_or_create_feeds()
+        self._categories = self._load_or_create_feeds()
 
     def _load_or_create_feeds(self):
-        """Loads feeds from file, or creates a default list if the file doesn't exist."""
+        """Loads categorized feeds from file, or creates a default list if the file doesn't exist."""
         if not os.path.exists(FEEDS_FILE):
-            print("Feeds file not found. Creating a default list.")
-            default_feeds = [
-                # أخبار
-                "https://www.aljazeera.net/aljazeerarss/rss.xml",
-                "https://feeds.bbci.co.uk/arabic/rss.xml",
-                "https://www.skynewsarabia.com/rss/all.xml",
-                "https://www.alarabiya.net/.mrss/ar.xml",
-
-                # تقنية
-                "https://www.tech-wd.com/feed/",
-                "https://www.unlimit-tech.com/feed/",
-
-                # رياضة
-                "https://www.kooora.com/rss/"
+            print("Feeds file not found. Creating a default list with categories.")
+            default_structure = [
+                {
+                    "name": "أخبار",
+                    "feeds": [
+                        "https://www.aljazeera.net/aljazeerarss/rss.xml",
+                        "https://feeds.bbci.co.uk/arabic/rss.xml",
+                        "https://www.skynewsarabia.com/rss/all.xml",
+                        "https://www.alarabiya.net/.mrss/ar.xml",
+                    ]
+                },
+                {
+                    "name": "تقنية",
+                    "feeds": [
+                        "https://www.tech-wd.com/feed/",
+                        "https://www.unlimit-tech.com/feed/",
+                    ]
+                },
+                {
+                    "name": "رياضة",
+                    "feeds": [
+                        "https://www.kooora.com/rss/"
+                    ]
+                }
             ]
-            try:
-                with open(FEEDS_FILE, "w", encoding="utf-8") as f:
-                    json.dump(default_feeds, f, ensure_ascii=False, indent=4)
-            except IOError:
-                pass
-            return default_feeds
+            self._save_structure(default_structure)
+            return default_structure
 
         try:
             with open(FEEDS_FILE, "r", encoding="utf-8") as f:
@@ -39,33 +45,59 @@ class RSSManager:
         except (IOError, json.JSONDecodeError):
             return []
 
-    def _save_feeds(self):
-        """Saves the current list of RSS feeds to the JSON file."""
+    def _save_structure(self, structure):
+        """Saves the entire category structure to the JSON file."""
         try:
             with open(FEEDS_FILE, "w", encoding="utf-8") as f:
-                json.dump(self._feeds, f, ensure_ascii=False, indent=4)
+                json.dump(structure, f, ensure_ascii=False, indent=4)
         except IOError:
             pass
 
-    def get_feeds(self):
-        """Returns the list of saved feed URLs."""
-        return self._feeds
+    def get_categories(self):
+        """Returns the list of category objects."""
+        return self._categories
 
-    def add_feed(self, feed_url):
-        """Adds a new feed URL to the list if it's not already there."""
-        if feed_url not in self._feeds:
-            self._feeds.append(feed_url)
-            self._save_feeds()
+    def add_category(self, category_name):
+        """Adds a new, empty category."""
+        for category in self._categories:
+            if category['name'] == category_name:
+                return False # Category already exists
+        self._categories.append({"name": category_name, "feeds": []})
+        self._save_structure(self._categories)
+        return True
+
+    def remove_category(self, category_name):
+        """Removes a category and all its feeds."""
+        category_to_remove = None
+        for category in self._categories:
+            if category['name'] == category_name:
+                category_to_remove = category
+                break
+        if category_to_remove:
+            self._categories.remove(category_to_remove)
+            self._save_structure(self._categories)
             return True
         return False
 
-    def remove_feed(self, feed_url):
-        """Removes a feed URL from the list."""
-        if feed_url in self._feeds:
-            self._feeds.remove(feed_url)
-            self._save_feeds()
-            return True
-        return False
+    def add_feed_to_category(self, feed_url, category_name):
+        """Adds a new feed URL to a specific category."""
+        for category in self._categories:
+            if category['name'] == category_name:
+                if feed_url not in category['feeds']:
+                    category['feeds'].append(feed_url)
+                    self._save_structure(self._categories)
+                    return True
+        return False # Category not found or feed already exists
+
+    def remove_feed_from_category(self, feed_url, category_name):
+        """Removes a feed URL from a specific category."""
+        for category in self._categories:
+            if category['name'] == category_name:
+                if feed_url in category['feeds']:
+                    category['feeds'].remove(feed_url)
+                    self._save_structure(self._categories)
+                    return True
+        return False # Category or feed not found
 
     def fetch_feed_articles(self, feed_url):
         """Fetches and parses articles from a given feed URL."""

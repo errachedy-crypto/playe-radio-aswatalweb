@@ -3,78 +3,111 @@ from rss_manager import RSSManager
 
 class ManageFeedsDialog(wx.Dialog):
     def __init__(self, parent=None):
-        super().__init__(parent, title="إدارة خلاصات RSS")
+        super().__init__(parent, title="إدارة خلاصات RSS", size=(500, 450))
 
         self.rss_manager = RSSManager()
         self.panel = wx.Panel(self)
-        self.vbox = wx.BoxSizer(wx.VERTICAL)
+        self.main_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # List of feeds
-        feeds_label = wx.StaticText(self.panel, label="الخلاصات الحالية:")
-        self.vbox.Add(feeds_label, flag=wx.LEFT | wx.TOP, border=10)
+        # Tree control for categories and feeds
+        self.tree = wx.TreeCtrl(self.panel, style=wx.TR_DEFAULT_STYLE | wx.TR_HAS_BUTTONS | wx.TR_LINES_AT_ROOT)
+        self.main_sizer.Add(self.tree, 1, wx.EXPAND | wx.ALL, 10)
+        self.populate_tree()
 
-        self.feeds_listbox = wx.ListBox(self.panel, style=wx.LB_SINGLE)
-        self.vbox.Add(self.feeds_listbox, proportion=1, flag=wx.EXPAND | wx.ALL, border=10)
-        self._populate_feeds_list()
-
-        # Add new feed section
-        add_hbox = wx.BoxSizer(wx.HORIZONTAL)
+        # --- Add Feed Section ---
+        add_feed_box = wx.StaticBox(self.panel, label="إضافة خلاصة جديدة إلى القسم المحدد")
+        add_feed_sizer = wx.StaticBoxSizer(add_feed_box, wx.HORIZONTAL)
         self.new_feed_text = wx.TextCtrl(self.panel)
-        add_hbox.Add(self.new_feed_text, proportion=1, flag=wx.EXPAND)
+        add_feed_sizer.Add(self.new_feed_text, 1, wx.EXPAND | wx.ALL, 5)
+        add_feed_button = wx.Button(self.panel, label="إضافة خلاصة")
+        add_feed_sizer.Add(add_feed_button, 0, wx.ALL, 5)
+        self.main_sizer.Add(add_feed_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
 
-        add_button = wx.Button(self.panel, label="إضافة")
-        add_hbox.Add(add_button, flag=wx.LEFT, border=5)
-        self.vbox.Add(add_hbox, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, border=10)
-
-        # Remove feed button
-        remove_button = wx.Button(self.panel, label="إزالة المحدد")
-        self.vbox.Add(remove_button, flag=wx.ALIGN_RIGHT | wx.RIGHT | wx.BOTTOM, border=10)
-
-        # Dialog buttons
+        # --- Add Category and Remove Buttons ---
         button_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        ok_button = wx.Button(self.panel, id=wx.ID_OK, label="موافق")
-        button_sizer.Add(ok_button)
-        self.vbox.Add(button_sizer, flag=wx.ALIGN_CENTER | wx.BOTTOM, border=10)
+        add_category_button = wx.Button(self.panel, label="إضافة قسم جديد")
+        button_sizer.Add(add_category_button, 1, wx.EXPAND | wx.ALL, 5)
+        remove_button = wx.Button(self.panel, label="إزالة العنصر المحدد")
+        button_sizer.Add(remove_button, 1, wx.EXPAND | wx.ALL, 5)
+        self.main_sizer.Add(button_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 5)
 
-        self.panel.SetSizer(self.vbox)
-        self.SetSize((400, 350))
+        # --- OK Button ---
+        ok_button = wx.Button(self.panel, id=wx.ID_OK, label="إغلاق")
+        self.main_sizer.Add(ok_button, 0, wx.ALIGN_CENTER | wx.ALL, 10)
+
+        self.panel.SetSizer(self.main_sizer)
 
         # Bind events
-        self.Bind(wx.EVT_BUTTON, self.on_add, add_button)
+        self.Bind(wx.EVT_BUTTON, self.on_add_feed, add_feed_button)
+        self.Bind(wx.EVT_BUTTON, self.on_add_category, add_category_button)
         self.Bind(wx.EVT_BUTTON, self.on_remove, remove_button)
-        self.Bind(wx.EVT_BUTTON, self.on_ok, id=wx.ID_OK)
+        self.Bind(wx.EVT_BUTTON, lambda e: self.EndModal(wx.ID_OK), id=wx.ID_OK)
 
-    def _populate_feeds_list(self):
-        """Clears and repopulates the listbox with current feeds."""
-        self.feeds_listbox.Clear()
-        feeds = self.rss_manager.get_feeds()
-        if feeds:
-            self.feeds_listbox.InsertItems(feeds, 0)
+    def populate_tree(self):
+        self.tree.DeleteAllItems()
+        root = self.tree.AddRoot("All Feeds")
+        categories = self.rss_manager.get_categories()
+        for cat_data in categories:
+            category_node = self.tree.AppendItem(root, cat_data["name"])
+            self.tree.SetItemData(category_node, {"type": "category"})
+            for feed_url in cat_data["feeds"]:
+                feed_node = self.tree.AppendItem(category_node, feed_url)
+                self.tree.SetItemData(feed_node, {"type": "feed", "category": cat_data["name"]})
+        self.tree.ExpandAll()
 
-    def on_add(self, event):
-        """Handles adding a new feed."""
+    def on_add_category(self, event):
+        with wx.TextEntryDialog(self, "أدخل اسم القسم الجديد:", "إضافة قسم") as dlg:
+            if dlg.ShowModal() == wx.ID_OK:
+                category_name = dlg.GetValue().strip()
+                if category_name:
+                    if self.rss_manager.add_category(category_name):
+                        self.populate_tree()
+                    else:
+                        wx.MessageBox(f"القسم '{category_name}' موجود بالفعل.", "خطأ", wx.ICON_ERROR)
+
+    def on_add_feed(self, event):
         feed_url = self.new_feed_text.GetValue().strip()
-        if feed_url:
-            if self.rss_manager.add_feed(feed_url):
-                self._populate_feeds_list()
-                self.new_feed_text.Clear()
-            else:
-                wx.MessageBox("هذه الخلاصة موجودة بالفعل.", "خطأ", wx.ICON_ERROR)
-        else:
+        if not feed_url:
             wx.MessageBox("الرجاء إدخال رابط الخلاصة.", "خطأ", wx.ICON_ERROR)
+            return
+
+        selected_item = self.tree.GetSelection()
+        if not selected_item.IsOk() or selected_item == self.tree.GetRootItem():
+            wx.MessageBox("الرجاء تحديد قسم أولاً لإضافة الخلاصة إليه.", "خطأ", wx.ICON_ERROR)
+            return
+
+        item_data = self.tree.GetItemData(selected_item)
+        if item_data["type"] == "feed":
+            # If a feed is selected, get its parent category
+            category_node = self.tree.GetItemParent(selected_item)
+        else: # It's a category
+            category_node = selected_item
+
+        category_name = self.tree.GetItemText(category_node)
+
+        if self.rss_manager.add_feed_to_category(feed_url, category_name):
+            self.populate_tree()
+            self.new_feed_text.Clear()
+        else:
+            wx.MessageBox(f"الخلاصة '{feed_url}' موجودة بالفعل في هذا القسم.", "خطأ", wx.ICON_ERROR)
 
     def on_remove(self, event):
-        """Handles removing a selected feed."""
-        selected_index = self.feeds_listbox.GetSelection()
-        if selected_index != wx.NOT_FOUND:
-            feed_url = self.feeds_listbox.GetString(selected_index)
-            if self.rss_manager.remove_feed(feed_url):
-                self._populate_feeds_list()
-            else:
-                wx.MessageBox("لم يتم العثور على الخلاصة المحددة.", "خطأ", wx.ICON_ERROR)
-        else:
-            wx.MessageBox("الرجاء تحديد خلاصة لإزالتها.", "تنبيه", wx.ICON_INFORMATION)
+        selected_item = self.tree.GetSelection()
+        if not selected_item.IsOk() or selected_item == self.tree.GetRootItem():
+            wx.MessageBox("الرجاء تحديد عنصر (قسم أو خلاصة) لإزالته.", "تنبيه", wx.ICON_INFORMATION)
+            return
 
-    def on_ok(self, event):
-        """Closes the dialog."""
-        self.EndModal(wx.ID_OK)
+        item_text = self.tree.GetItemText(selected_item)
+        item_data = self.tree.GetItemData(selected_item)
+
+        if item_data["type"] == "category":
+            with wx.MessageDialog(self, f"هل أنت متأكد من أنك تريد حذف قسم '{item_text}' وجميع الخلاصات الموجودة فيه؟", "تأكيد الحذف", wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING) as dlg:
+                if dlg.ShowModal() == wx.ID_YES:
+                    self.rss_manager.remove_category(item_text)
+                    self.populate_tree()
+
+        elif item_data["type"] == "feed":
+            category_name = item_data["category"]
+            feed_url = item_text
+            self.rss_manager.remove_feed_from_category(feed_url, category_name)
+            self.populate_tree()
