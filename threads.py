@@ -64,3 +64,24 @@ class StationLoader(threading.Thread):
             else:
                 logging.error("Failed to load stations from network and no cache available.")
                 wx.CallAfter(self.window.on_stations_load_error, "فشل تحميل قائمة الإذاعات من الإنترنت ولا توجد نسخة محفوظة. يرجى التحقق من اتصالك بالإنترنت.", True)
+
+
+class ArticleLoader(threading.Thread):
+    def __init__(self, feed_url, window):
+        super().__init__()
+        self.feed_url = feed_url
+        self.window = window
+
+    def run(self):
+        try:
+            logging.debug(f"Fetching articles from {self.feed_url}...")
+            articles = self.window.rss_manager.fetch_feed_articles(self.feed_url)
+            if articles is not None:
+                logging.info(f"Successfully fetched {len(articles)} articles from {self.feed_url}.")
+                wx.CallAfter(self.window.on_articles_fetched, articles)
+            else:
+                raise ValueError("fetch_feed_articles returned None")
+        except Exception as e:
+            logging.error(f"Failed to fetch articles from {self.feed_url}: {e}")
+            # Optionally, notify the UI of the error
+            wx.CallAfter(self.window.on_articles_fetch_error, self.feed_url)
