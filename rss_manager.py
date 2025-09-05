@@ -155,10 +155,17 @@ class RSSManager:
 
     def fetch_feed_articles(self, feed_url):
         """Fetches and parses articles from a given feed URL."""
+        logging.debug(f"Attempting to parse feed: {feed_url}")
         try:
-            parsed_feed = feedparser.parse(feed_url)
+            # Some sites block default user agents. Let's use a common one.
+            agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36'
+            parsed_feed = feedparser.parse(feed_url, agent=agent)
+
             if parsed_feed.bozo:
-                print(f"Warning: Feed '{feed_url}' may be malformed. Error: {parsed_feed.bozo_exception}")
+                logging.warning(f"Feed '{feed_url}' may be malformed. Bozo Exception: {parsed_feed.bozo_exception}")
+
+            if not parsed_feed.entries:
+                logging.warning(f"No entries found in feed: {feed_url}. Status: {parsed_feed.get('status', 'N/A')}")
 
             articles = []
             for entry in parsed_feed.entries:
