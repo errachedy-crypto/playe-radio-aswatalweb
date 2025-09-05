@@ -1,6 +1,7 @@
 import json
 import os
 import feedparser
+import logging
 
 FEEDS_FILE = os.path.join(os.path.expanduser("~"), "stv_radio_rss_feeds.json")
 
@@ -9,41 +10,49 @@ class RSSManager:
         self._categories = self._load_or_create_feeds()
 
     def _load_or_create_feeds(self):
-        """Loads categorized feeds from file, or creates a default list if the file doesn't exist."""
-        if not os.path.exists(FEEDS_FILE):
-            print("Feeds file not found. Creating a default list with categories.")
-            default_structure = [
-                {
-                    "name": "أخبار",
-                    "feeds": [
-                        "https://www.aljazeera.net/aljazeerarss/rss.xml",
-                        "https://feeds.bbci.co.uk/arabic/rss.xml",
-                        "https://www.skynewsarabia.com/rss/all.xml",
-                        "https://www.alarabiya.net/.mrss/ar.xml",
-                    ]
-                },
-                {
-                    "name": "تقنية",
-                    "feeds": [
-                        "https://www.tech-wd.com/feed/",
-                        "https://www.unlimit-tech.com/feed/",
-                    ]
-                },
-                {
-                    "name": "رياضة",
-                    "feeds": [
-                        "https://www.kooora.com/rss/"
-                    ]
-                }
-            ]
-            self._save_structure(default_structure)
-            return default_structure
+        """Loads categorized feeds from file, or creates a default list if the file is invalid or doesn't exist."""
+        if os.path.exists(FEEDS_FILE):
+            try:
+                with open(FEEDS_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                # Basic data validation: check if it's a list of dicts.
+                if isinstance(data, list) and (not data or isinstance(data[0], dict)):
+                    return data  # Data is valid or an empty list.
+                logging.warning("Old or invalid RSS data format found. Recreating default file.")
+            except (IOError, json.JSONDecodeError, IndexError):
+                logging.warning("Could not read or parse RSS feeds file. Recreating.")
 
+        logging.info("Creating a default list of RSS feeds with categories.")
+        default_structure = [
+            {
+                "name": "أخبار",
+                "feeds": [
+                    "https://www.aljazeera.net/aljazeerarss/rss.xml",
+                    "https://feeds.bbci.co.uk/arabic/rss.xml",
+                    "https://www.skynewsarabia.com/rss/all.xml",
+                    "https://www.alarabiya.net/.mrss/ar.xml",
+                ]
+            },
+            {
+                "name": "تقنية",
+                "feeds": [
+                    "https://www.tech-wd.com/feed/",
+                    "https://www.unlimit-tech.com/feed/",
+                ]
+            },
+            {
+                "name": "رياضة",
+                "feeds": [
+                    "https://www.kooora.com/rss/"
+                ]
+            }
+        ]
         try:
-            with open(FEEDS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except (IOError, json.JSONDecodeError):
-            return []
+            with open(FEEDS_FILE, "w", encoding="utf-8") as f:
+                json.dump(default_structure, f, ensure_ascii=False, indent=4)
+        except IOError:
+            pass
+        return default_structure
 
     def _save_structure(self, structure):
         """Saves the entire category structure to the JSON file."""
