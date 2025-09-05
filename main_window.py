@@ -610,7 +610,7 @@ class RadioWindow(wx.Frame):
             self.articles_list.SetItem(i, 1, article["published"])
             self.articles_list.SetItemData(i, i)
         self.GetStatusBar().SetStatusText(f"تم تحميل {len(articles)} مقالة.")
-        self.news_panel.Layout()
+        self.articles_list.Refresh()
 
     def on_articles_fetch_error(self, feed_url):
         self.GetStatusBar().SetStatusText(f"فشل تحميل المقالات من {feed_url}.")
