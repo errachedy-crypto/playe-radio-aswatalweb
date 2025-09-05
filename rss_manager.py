@@ -7,7 +7,7 @@ import configparser
 
 LOCAL_FEEDS_FILE = os.path.join(os.path.expanduser("~"), "stv_radio_custom_feeds.json")
 REMOTE_FEEDS_CACHE_FILE = os.path.join(os.path.expanduser("~"), "stv_radio_remote_feeds_cache.json")
-REMOTE_FEEDS_URL = "https://aswatalweb.com/radio/Feeds-radio/DefaultListRSS.Ini"
+REMOTE_FEEDS_URL = "https://aswatalweb.com/radio/liverss/DefaultListRSS.Ini"
 
 class RSSManager:
     def __init__(self):
