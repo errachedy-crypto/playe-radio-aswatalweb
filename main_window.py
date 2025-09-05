@@ -571,9 +571,13 @@ class RadioWindow(wx.Frame):
     def populate_feeds_tree(self):
         self.feeds_tree.DeleteAllItems()
         root = self.feeds_tree.AddRoot("الخلاصات")
-        categories = self.rss_manager.get_categories()
+        categories = self.rss_manager.get_merged_categories()
         for cat_data in categories:
-            category_node = self.feeds_tree.AppendItem(root, cat_data["name"])
+            display_name = cat_data["name"]
+            if cat_data.get("source") == "local":
+                display_name += " (محلي)"
+
+            category_node = self.feeds_tree.AppendItem(root, display_name)
             self.feeds_tree.SetItemData(category_node, {"type": "category"})
             for feed_url in cat_data["feeds"]:
                 feed_node = self.feeds_tree.AppendItem(category_node, feed_url)
