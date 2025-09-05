@@ -6,6 +6,7 @@ import requests
 import configparser
 
 LOCAL_FEEDS_FILE = os.path.join(os.path.expanduser("~"), "stv_radio_custom_feeds.json")
+REMOTE_FEEDS_CACHE_FILE = os.path.join(os.path.expanduser("~"), "stv_radio_remote_feeds_cache.json")
 REMOTE_FEEDS_URL = "https://aswatalweb.com/radio/Feeds-radio/DefaultListRSS.Ini"
 
 class RSSManager:
@@ -61,9 +62,10 @@ class RSSManager:
             pass
 
     def _fetch_remote_categories(self):
-        """Fetches and parses the remote INI file to get the base categories."""
+        """Fetches remote categories from the web, with a local cache fallback."""
         try:
-            response = requests.get(REMOTE_FEEDS_URL, timeout=10)
+            logging.info("Attempting to fetch remote feeds from network...")
+            response = requests.get(REMOTE_FEEDS_URL, timeout=20)
             response.raise_for_status()
             ini_content = response.content.decode('utf-8-sig')
 
@@ -79,10 +81,24 @@ class RSSManager:
                         categories[group] = []
                     categories[group].append(url)
 
-            return [{"name": name, "feeds": feeds} for name, feeds in categories.items()]
+            parsed_data = [{"name": name, "feeds": feeds} for name, feeds in categories.items()]
 
-        except (requests.exceptions.RequestException, configparser.Error) as e:
-            logging.error(f"Could not fetch or parse remote feeds list: {e}")
+            with open(REMOTE_FEEDS_CACHE_FILE, "w", encoding="utf-8") as f:
+                json.dump(parsed_data, f, ensure_ascii=False, indent=4)
+
+            return parsed_data
+
+        except requests.exceptions.RequestException as e:
+            logging.warning(f"Could not fetch remote feeds list: {e}. Attempting to load from cache.")
+            try:
+                with open(REMOTE_FEEDS_CACHE_FILE, "r", encoding="utf-8") as f:
+                    logging.info("Successfully loaded remote feeds from cache.")
+                    return json.load(f)
+            except (IOError, json.JSONDecodeError):
+                logging.error("Failed to load remote feeds from cache.")
+                return []
+        except configparser.Error as e:
+            logging.error(f"Could not parse remote feeds list: {e}")
             return []
 
     def add_category(self, category_name):
@@ -109,7 +125,6 @@ class RSSManager:
 
     def add_feed_to_category(self, feed_url, category_name):
         """Adds a feed to a category in the local list."""
-        # First, ensure the category exists, creating it if necessary
         target_category = None
         for category in self._local_categories:
             if category['name'] == category_name:
@@ -121,7 +136,6 @@ class RSSManager:
                 if category['name'] == category_name:
                     target_category = category
                     break
-
         if target_category:
             if feed_url not in target_category['feeds']:
                 target_category['feeds'].append(feed_url)
