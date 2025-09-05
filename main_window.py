@@ -579,6 +579,7 @@ class RadioWindow(wx.Frame):
                 feed_node = self.feeds_tree.AppendItem(category_node, feed_url)
                 self.feeds_tree.SetItemData(feed_node, {"type": "feed", "url": feed_url})
         self.feeds_tree.ExpandAll()
+        self.news_panel.Layout()
 
     def on_refresh_feeds(self, event):
         self.rss_manager = RSSManager()
