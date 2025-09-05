@@ -2,111 +2,142 @@ import json
 import os
 import feedparser
 import logging
+import requests
+import configparser
 
-FEEDS_FILE = os.path.join(os.path.expanduser("~"), "stv_radio_rss_feeds.json")
+LOCAL_FEEDS_FILE = os.path.join(os.path.expanduser("~"), "stv_radio_custom_feeds.json")
+REMOTE_FEEDS_URL = "https://aswatalweb.com/radio/Feeds-radio/DefaultListRSS.Ini"
 
 class RSSManager:
     def __init__(self):
-        self._categories = self._load_or_create_feeds()
+        self._local_categories = self._load_local_categories()
 
-    def _load_or_create_feeds(self):
-        """Loads categorized feeds from file, or creates a default list if the file is invalid or doesn't exist."""
-        if os.path.exists(FEEDS_FILE):
-            try:
-                with open(FEEDS_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                # Basic data validation: check if it's a list of dicts.
-                if isinstance(data, list) and (not data or isinstance(data[0], dict)):
-                    return data  # Data is valid or an empty list.
-                logging.warning("Old or invalid RSS data format found. Recreating default file.")
-            except (IOError, json.JSONDecodeError, IndexError):
-                logging.warning("Could not read or parse RSS feeds file. Recreating.")
+    def get_merged_categories(self):
+        """
+        Fetches remote categories, loads local categories, and merges them.
+        The returned structure includes a 'source' key for each category.
+        """
+        remote_categories = self._fetch_remote_categories()
+        for cat in remote_categories:
+            cat['source'] = 'remote'
 
-        logging.info("Creating a default list of RSS feeds with categories.")
-        default_structure = [
-            {
-                "name": "أخبار",
-                "feeds": [
-                    "https://www.aljazeera.net/aljazeerarss/rss.xml",
-                    "https://feeds.bbci.co.uk/arabic/rss.xml",
-                    "https://www.skynewsarabia.com/rss/all.xml",
-                    "https://www.alarabiya.net/.mrss/ar.xml",
-                ]
-            },
-            {
-                "name": "تقنية",
-                "feeds": [
-                    "https://www.tech-wd.com/feed/",
-                    "https://www.unlimit-tech.com/feed/",
-                ]
-            },
-            {
-                "name": "رياضة",
-                "feeds": [
-                    "https://www.kooora.com/rss/"
-                ]
-            }
-        ]
+        merged_categories = [dict(c) for c in remote_categories]
+        remote_cat_names = {c['name'] for c in merged_categories}
+
+        for local_cat in self._local_categories:
+            local_cat_with_source = dict(local_cat)
+            local_cat_with_source['source'] = 'local'
+
+            if local_cat['name'] not in remote_cat_names:
+                merged_categories.append(local_cat_with_source)
+            else:
+                for remote_cat in merged_categories:
+                    if remote_cat['name'] == local_cat['name']:
+                        for feed_url in local_cat['feeds']:
+                            if feed_url not in remote_cat['feeds']:
+                                remote_cat['feeds'].append(feed_url)
+                        break
+        return merged_categories
+
+    def _load_local_categories(self):
+        """Loads the user's custom feeds and categories from a local JSON file."""
+        if not os.path.exists(LOCAL_FEEDS_FILE):
+            return []
         try:
-            with open(FEEDS_FILE, "w", encoding="utf-8") as f:
-                json.dump(default_structure, f, ensure_ascii=False, indent=4)
-        except IOError:
-            pass
-        return default_structure
+            with open(LOCAL_FEEDS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, list):
+                return data
+            return []
+        except (IOError, json.JSONDecodeError):
+            return []
 
-    def _save_structure(self, structure):
-        """Saves the entire category structure to the JSON file."""
+    def _save_local_categories(self):
+        """Saves the user's custom feeds and categories."""
         try:
-            with open(FEEDS_FILE, "w", encoding="utf-8") as f:
-                json.dump(structure, f, ensure_ascii=False, indent=4)
+            with open(LOCAL_FEEDS_FILE, "w", encoding="utf-8") as f:
+                json.dump(self._local_categories, f, ensure_ascii=False, indent=4)
         except IOError:
             pass
 
-    def get_categories(self):
-        """Returns the list of category objects."""
-        return self._categories
+    def _fetch_remote_categories(self):
+        """Fetches and parses the remote INI file to get the base categories."""
+        try:
+            response = requests.get(REMOTE_FEEDS_URL, timeout=10)
+            response.raise_for_status()
+            ini_content = response.content.decode('utf-8-sig')
+
+            config = configparser.ConfigParser()
+            config.read_string(ini_content)
+
+            categories = {}
+            for section in config.sections():
+                group = config.get(section, 'Group', fallback='متفرقات').strip()
+                url = config.get(section, 'Url', fallback=None)
+                if url:
+                    if group not in categories:
+                        categories[group] = []
+                    categories[group].append(url)
+
+            return [{"name": name, "feeds": feeds} for name, feeds in categories.items()]
+
+        except (requests.exceptions.RequestException, configparser.Error) as e:
+            logging.error(f"Could not fetch or parse remote feeds list: {e}")
+            return []
 
     def add_category(self, category_name):
-        """Adds a new, empty category."""
-        for category in self._categories:
+        """Adds a new category to the local list."""
+        for category in self._local_categories:
             if category['name'] == category_name:
-                return False # Category already exists
-        self._categories.append({"name": category_name, "feeds": []})
-        self._save_structure(self._categories)
+                return False
+        self._local_categories.append({"name": category_name, "feeds": []})
+        self._save_local_categories()
         return True
 
     def remove_category(self, category_name):
-        """Removes a category and all its feeds."""
+        """Removes a category from the local list."""
         category_to_remove = None
-        for category in self._categories:
+        for category in self._local_categories:
             if category['name'] == category_name:
                 category_to_remove = category
                 break
         if category_to_remove:
-            self._categories.remove(category_to_remove)
-            self._save_structure(self._categories)
+            self._local_categories.remove(category_to_remove)
+            self._save_local_categories()
             return True
         return False
 
     def add_feed_to_category(self, feed_url, category_name):
-        """Adds a new feed URL to a specific category."""
-        for category in self._categories:
+        """Adds a feed to a category in the local list."""
+        # First, ensure the category exists, creating it if necessary
+        target_category = None
+        for category in self._local_categories:
             if category['name'] == category_name:
-                if feed_url not in category['feeds']:
-                    category['feeds'].append(feed_url)
-                    self._save_structure(self._categories)
-                    return True
-        return False # Category not found or feed already exists
+                target_category = category
+                break
+        if not target_category:
+            self.add_category(category_name)
+            for category in self._local_categories:
+                if category['name'] == category_name:
+                    target_category = category
+                    break
+
+        if target_category:
+            if feed_url not in target_category['feeds']:
+                target_category['feeds'].append(feed_url)
+                self._save_local_categories()
+                return True
+        return False
 
     def remove_feed_from_category(self, feed_url, category_name):
-        """Removes a feed URL from a specific category."""
-        for category in self._categories:
+        """Removes a feed from a category in the local list."""
+        for category in self._local_categories:
             if category['name'] == category_name:
                 if feed_url in category['feeds']:
                     category['feeds'].remove(feed_url)
-                    self._save_structure(self._categories)
+                    self._save_local_categories()
                     return True
-        return False # Category or feed not found
+        return False
 
     def fetch_feed_articles(self, feed_url):
         """Fetches and parses articles from a given feed URL."""

@@ -25,9 +25,9 @@ class ManageFeedsDialog(wx.Dialog):
 
         # --- Add Category and Remove Buttons ---
         button_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        add_category_button = wx.Button(self.panel, label="إضافة قسم جديد")
+        add_category_button = wx.Button(self.panel, label="إضافة قسم محلي جديد")
         button_sizer.Add(add_category_button, 1, wx.EXPAND | wx.ALL, 5)
-        remove_button = wx.Button(self.panel, label="إزالة العنصر المحدد")
+        remove_button = wx.Button(self.panel, label="إزالة العنصر المحلي المحدد")
         button_sizer.Add(remove_button, 1, wx.EXPAND | wx.ALL, 5)
         self.main_sizer.Add(button_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 5)
 
@@ -46,24 +46,32 @@ class ManageFeedsDialog(wx.Dialog):
     def populate_tree(self):
         self.tree.DeleteAllItems()
         root = self.tree.AddRoot("All Feeds")
-        categories = self.rss_manager.get_categories()
+        categories = self.rss_manager.get_merged_categories()
+
         for cat_data in categories:
-            category_node = self.tree.AppendItem(root, cat_data["name"])
-            self.tree.SetItemData(category_node, {"type": "category"})
+            display_name = cat_data["name"]
+            if cat_data["source"] == "local":
+                display_name += " (محلي)"
+
+            category_node = self.tree.AppendItem(root, display_name)
+            self.tree.SetItemData(category_node, {"type": "category", "source": cat_data["source"], "real_name": cat_data["name"]})
+
             for feed_url in cat_data["feeds"]:
                 feed_node = self.tree.AppendItem(category_node, feed_url)
-                self.tree.SetItemData(feed_node, {"type": "feed", "category": cat_data["name"]})
+                # For now, we assume all feeds within a category share its source.
+                self.tree.SetItemData(feed_node, {"type": "feed", "source": cat_data["source"], "category": cat_data["name"]})
+
         self.tree.ExpandAll()
 
     def on_add_category(self, event):
-        with wx.TextEntryDialog(self, "أدخل اسم القسم الجديد:", "إضافة قسم") as dlg:
+        with wx.TextEntryDialog(self, "أدخل اسم القسم الجديد:", "إضافة قسم محلي") as dlg:
             if dlg.ShowModal() == wx.ID_OK:
                 category_name = dlg.GetValue().strip()
                 if category_name:
                     if self.rss_manager.add_category(category_name):
                         self.populate_tree()
                     else:
-                        wx.MessageBox(f"القسم '{category_name}' موجود بالفعل.", "خطأ", wx.ICON_ERROR)
+                        wx.MessageBox(f"القسم '{category_name}' موجود بالفعل في قائمتك المحلية.", "خطأ", wx.ICON_ERROR)
 
     def on_add_feed(self, event):
         feed_url = self.new_feed_text.GetValue().strip()
@@ -78,36 +86,40 @@ class ManageFeedsDialog(wx.Dialog):
 
         item_data = self.tree.GetItemData(selected_item)
         if item_data["type"] == "feed":
-            # If a feed is selected, get its parent category
             category_node = self.tree.GetItemParent(selected_item)
-        else: # It's a category
+        else:
             category_node = selected_item
 
-        category_name = self.tree.GetItemText(category_node)
+        category_name = self.tree.GetItemData(category_node)["real_name"]
 
         if self.rss_manager.add_feed_to_category(feed_url, category_name):
             self.populate_tree()
             self.new_feed_text.Clear()
         else:
-            wx.MessageBox(f"الخلاصة '{feed_url}' موجودة بالفعل في هذا القسم.", "خطأ", wx.ICON_ERROR)
+            wx.MessageBox(f"فشلت إضافة الخلاصة. قد تكون موجودة بالفعل.", "خطأ", wx.ICON_ERROR)
 
     def on_remove(self, event):
         selected_item = self.tree.GetSelection()
         if not selected_item.IsOk() or selected_item == self.tree.GetRootItem():
-            wx.MessageBox("الرجاء تحديد عنصر (قسم أو خلاصة) لإزالته.", "تنبيه", wx.ICON_INFORMATION)
+            wx.MessageBox("الرجاء تحديد عنصر لإزالته.", "تنبيه", wx.ICON_INFORMATION)
+            return
+
+        item_data = self.tree.GetItemData(selected_item)
+
+        if item_data["source"] == "remote":
+            wx.MessageBox("لا يمكن حذف العناصر القادمة من الإنترنت. يمكنك فقط حذف الأقسام أو الخلاصات المحلية التي أضفتها بنفسك.", "معلومة", wx.ICON_INFORMATION)
             return
 
         item_text = self.tree.GetItemText(selected_item)
-        item_data = self.tree.GetItemData(selected_item)
+        category_name = self.tree.GetItemData(selected_item)["real_name"] if item_data["type"] == "category" else item_data["category"]
 
         if item_data["type"] == "category":
-            with wx.MessageDialog(self, f"هل أنت متأكد من أنك تريد حذف قسم '{item_text}' وجميع الخلاصات الموجودة فيه؟", "تأكيد الحذف", wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING) as dlg:
+            with wx.MessageDialog(self, f"هل أنت متأكد من أنك تريد حذف قسم '{category_name}' المحلي وجميع خلاصاته؟", "تأكيد الحذف", wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING) as dlg:
                 if dlg.ShowModal() == wx.ID_YES:
-                    self.rss_manager.remove_category(item_text)
+                    self.rss_manager.remove_category(category_name)
                     self.populate_tree()
 
         elif item_data["type"] == "feed":
-            category_name = item_data["category"]
             feed_url = item_text
             self.rss_manager.remove_feed_from_category(feed_url, category_name)
             self.populate_tree()
