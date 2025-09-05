@@ -67,7 +67,7 @@ class RSSManager:
             response.raise_for_status()
             ini_content = response.content.decode('utf-8-sig')
 
-            config = configparser.ConfigParser()
+            config = configparser.ConfigParser(interpolation=None)
             config.read_string(ini_content)
 
             categories = {}
