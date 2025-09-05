@@ -586,10 +586,34 @@ class RadioWindow(wx.Frame):
         self.news_panel.Layout()
 
     def on_refresh_feeds(self, event):
+        # Store selection
+        selected_url = None
+        selected_item = self.feeds_tree.GetSelection()
+        if selected_item.IsOk():
+            item_data = self.feeds_tree.GetItemData(selected_item)
+            if item_data and item_data.get("type") == "feed":
+                selected_url = item_data.get("url")
+
+        # Rebuild
         self.rss_manager = RSSManager()
         self.populate_feeds_tree()
         self.articles_list.DeleteAllItems()
         self.GetStatusBar().SetStatusText("تم تحديث قائمة الخلاصات.")
+
+        # Restore selection
+        if selected_url:
+            root = self.feeds_tree.GetRootItem()
+            (category_node, cookie) = self.feeds_tree.GetFirstChild(root)
+            while category_node.IsOk():
+                (feed_node, cookie2) = self.feeds_tree.GetFirstChild(category_node)
+                while feed_node.IsOk():
+                    node_data = self.feeds_tree.GetItemData(feed_node)
+                    if node_data and node_data.get("url") == selected_url:
+                        self.feeds_tree.SelectItem(feed_node)
+                        self.feeds_tree.EnsureVisible(feed_node)
+                        return
+                    (feed_node, cookie2) = self.feeds_tree.GetNextChild(category_node, cookie2)
+                (category_node, cookie) = self.feeds_tree.GetNextChild(root, cookie)
 
     def on_feed_selected(self, event):
         item = event.GetItem()
@@ -610,7 +634,8 @@ class RadioWindow(wx.Frame):
             self.articles_list.SetItem(i, 1, article["published"])
             self.articles_list.SetItemData(i, i)
         self.GetStatusBar().SetStatusText(f"تم تحميل {len(articles)} مقالة.")
-        self.articles_list.Refresh()
+        self.articles_list.Update()
+        self.news_panel.Layout()
 
     def on_articles_fetch_error(self, feed_url):
         self.GetStatusBar().SetStatusText(f"فشل تحميل المقالات من {feed_url}.")
