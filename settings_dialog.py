@@ -1,5 +1,6 @@
 import wx
 from constants import THEMES
+from manage_feeds_dialog import ManageFeedsDialog
 
 class SettingsDialog(wx.Dialog):
     def __init__(self, settings, parent=None):
@@ -35,6 +36,14 @@ class SettingsDialog(wx.Dialog):
         self.sound_effects_checkbox.SetValue(self.settings.get("sound_effects_enabled", True))
         self.vbox.Add(self.sound_effects_checkbox, flag=wx.LEFT | wx.TOP, border=10)
 
+        # RSS Feeds Management
+        line = wx.StaticLine(self.panel, style=wx.LI_HORIZONTAL)
+        self.vbox.Add(line, flag=wx.EXPAND | wx.ALL, border=10)
+
+        manage_feeds_button = wx.Button(self.panel, label="إدارة خلاصات RSS")
+        self.vbox.Add(manage_feeds_button, flag=wx.ALIGN_CENTER | wx.TOP, border=10)
+
+
         button_sizer = wx.BoxSizer(wx.HORIZONTAL)
         ok_button = wx.Button(self.panel, id=wx.ID_OK, label="موافق")
         cancel_button = wx.Button(self.panel, id=wx.ID_CANCEL, label="إلغاء")
@@ -45,6 +54,12 @@ class SettingsDialog(wx.Dialog):
         self.panel.SetSizer(self.vbox)
 
         self.Bind(wx.EVT_BUTTON, self.on_ok, id=wx.ID_OK)
+        self.Bind(wx.EVT_BUTTON, self.on_manage_feeds, manage_feeds_button)
+
+    def on_manage_feeds(self, event):
+        """Opens the Manage Feeds dialog."""
+        with ManageFeedsDialog(self) as dlg:
+            dlg.ShowModal()
 
     def on_ok(self, event):
         self.settings["check_for_updates"] = self.update_checkbox.GetValue()

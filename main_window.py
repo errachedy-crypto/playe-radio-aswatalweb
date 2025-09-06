@@ -4,15 +4,17 @@ import os
 import sys
 from datetime import datetime
 import wx
+import wx.html
 
 from constants import CURRENT_VERSION, UPDATE_URL, THEMES
 from settings import load_settings, save_settings
-from threads import UpdateChecker, StationLoader
+from threads import UpdateChecker, StationLoader, ArticleLoader
 from player import Player
 from settings_dialog import SettingsDialog
 from help_dialog import HelpDialog
 from sound_manager import SoundManager
 from popup_window import TimedPopup
+from rss_manager import RSSManager
 
 try:
     from comtypes import CLSCTX_ALL
@@ -24,10 +26,12 @@ except (ImportError, OSError):
 
 class RadioWindow(wx.Frame):
     def __init__(self, vlc_instance, sound_manager):
-        super().__init__(None, title=f"Amwaj v{CURRENT_VERSION}", size=(400, 600))
+        super().__init__(None, title=f"Amwaj v{CURRENT_VERSION}", size=(700, 700))
 
         self.vlc_instance = vlc_instance
         self.sound_manager = sound_manager
+        self.rss_manager = RSSManager()
+        self.articles = []
 
         self.settings = load_settings()
         self.player = Player(self.vlc_instance)
@@ -38,12 +42,24 @@ class RadioWindow(wx.Frame):
         self.panel = wx.Panel(self)
         self.main_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        self.setup_ui()
+        # Create the notebook
+        self.notebook = wx.Notebook(self.panel)
+        self.main_sizer.Add(self.notebook, 1, wx.EXPAND)
+
+        # Create panels for the tabs
+        self.radio_panel = wx.Panel(self.notebook)
+        self.news_panel = wx.Panel(self.notebook)
+
+        self.notebook.AddPage(self.radio_panel, "الراديو")
+        self.notebook.AddPage(self.news_panel, "الأخبار")
+
+        self.setup_radio_ui() # Refactored UI setup
+        self.setup_news_ui() # Placeholder for news UI
+
         self.setup_menu()
         self.connect_signals()
 
         self.set_initial_volume()
-        # self.adjust_volume(None) # No longer needed, set_initial_volume handles it
         self.apply_theme()
         self.apply_sound_settings()
 
@@ -51,6 +67,8 @@ class RadioWindow(wx.Frame):
         self.setup_shortcuts()
 
         self.Bind(wx.EVT_CLOSE, self.on_close)
+        self.panel.SetSizer(self.main_sizer)
+
 
     def set_initial_volume(self):
         initial_volume = self.settings.get("volume", 50)
@@ -59,20 +77,18 @@ class RadioWindow(wx.Frame):
                 devices = AudioUtilities.GetSpeakers()
                 interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
                 volume = interface.QueryInterface(IAudioEndpointVolume)
-                # Volume scalar is from 0.0 to 1.0, we need 0 to 100
                 system_volume = int(volume.GetMasterVolumeLevelScalar() * 100)
                 initial_volume = system_volume
             except Exception as e:
                 logging.warning(f"Could not set initial volume from system: {e}")
-
-        # Set volume using the new helper method
-        self._set_volume(initial_volume)
+        self._set_volume(initial_volume, announce=False)
 
 
     def finish_setup(self):
         try:
             logging.debug("Starting setup tasks...")
             self.load_stations()
+            self.populate_feeds_tree()
             if self.settings.get("check_for_updates", True):
                 self.check_for_updates()
             self.GetStatusBar().SetStatusText("أهلاً بك في الراديو العربي STV")
@@ -83,55 +99,95 @@ class RadioWindow(wx.Frame):
             logging.error(f"Error during setup: {e}")
             wx.MessageBox(f"حدث خطأ أثناء تهيئة التطبيق:\n{e}", "خطأ في التهيئة", wx.OK | wx.ICON_ERROR)
 
-    def setup_ui(self):
+    def setup_radio_ui(self):
+        radio_sizer = wx.BoxSizer(wx.VERTICAL)
+
         # Tree Widget
-        self.tree_widget = wx.TreeCtrl(self.panel, style=wx.TR_DEFAULT_STYLE | wx.TR_HIDE_ROOT | wx.TR_HAS_BUTTONS)
-        self.main_sizer.Add(self.tree_widget, 1, wx.EXPAND | wx.ALL, 5)
+        self.tree_widget = wx.TreeCtrl(self.radio_panel, style=wx.TR_DEFAULT_STYLE | wx.TR_HIDE_ROOT | wx.TR_HAS_BUTTONS)
+        radio_sizer.Add(self.tree_widget, 1, wx.EXPAND | wx.ALL, 5)
 
         # Search Box
-        self.search_box = wx.TextCtrl(self.panel, style=wx.TE_PROCESS_ENTER)
+        self.search_box = wx.TextCtrl(self.radio_panel, style=wx.TE_PROCESS_ENTER)
         self.search_box.SetHint("ابحث عن إذاعة...")
-        self.main_sizer.Add(self.search_box, 0, wx.EXPAND | wx.ALL, 5)
+        radio_sizer.Add(self.search_box, 0, wx.EXPAND | wx.ALL, 5)
 
         # Buttons
         button_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.play_stop_button = wx.Button(self.panel, label="تشغيل")
+        self.play_stop_button = wx.Button(self.radio_panel, label="تشغيل")
         button_sizer.Add(self.play_stop_button, 1, wx.EXPAND | wx.ALL, 5)
-        self.record_button = wx.Button(self.panel, label="تسجيل")
+        self.record_button = wx.Button(self.radio_panel, label="تسجيل")
         button_sizer.Add(self.record_button, 1, wx.EXPAND | wx.ALL, 5)
-        self.main_sizer.Add(button_sizer, 0, wx.EXPAND)
+        radio_sizer.Add(button_sizer, 0, wx.EXPAND)
 
         # Volume
         volume_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        volume_label = wx.StaticText(self.panel, label="مستوى الصوت:")
-        self.volume_slider = wx.Slider(self.panel, value=50, minValue=0, maxValue=100)
+        volume_label = wx.StaticText(self.radio_panel, label="مستوى الصوت:")
+        self.volume_slider = wx.Slider(self.radio_panel, value=50, minValue=0, maxValue=100)
         volume_sizer.Add(volume_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
         volume_sizer.Add(self.volume_slider, 1, wx.EXPAND | wx.ALL, 5)
-        self.main_sizer.Add(volume_sizer, 0, wx.EXPAND)
+        radio_sizer.Add(volume_sizer, 0, wx.EXPAND)
 
         # Timer
         timer_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        timer_label = wx.StaticText(self.panel, label="مؤقت النوم:")
+        timer_label = wx.StaticText(self.radio_panel, label="مؤقت النوم:")
         self.timer_options = ["إيقاف", "15 دقيقة", "30 دقيقة", "60 دقيقة", "90 دقيقة"]
-        self.sleep_timer_choice = wx.Choice(self.panel, choices=self.timer_options)
+        self.sleep_timer_choice = wx.Choice(self.radio_panel, choices=self.timer_options)
         self.sleep_timer_choice.SetSelection(0)
         timer_sizer.Add(timer_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
         timer_sizer.Add(self.sleep_timer_choice, 1, wx.EXPAND | wx.ALL, 5)
-        self.main_sizer.Add(timer_sizer, 0, wx.EXPAND)
+        radio_sizer.Add(timer_sizer, 0, wx.EXPAND)
 
         # Settings button
-        settings_button = wx.Button(self.panel, label="الإعدادات")
-        self.main_sizer.Add(settings_button, 0, wx.EXPAND | wx.ALL, 5)
+        settings_button = wx.Button(self.radio_panel, label="الإعدادات")
+        radio_sizer.Add(settings_button, 0, wx.EXPAND | wx.ALL, 5)
         self.Bind(wx.EVT_BUTTON, self.open_settings_dialog, settings_button)
 
-
         # Now Playing
-        self.now_playing_label = wx.StaticText(self.panel, label="التشغيل الحالي: -", style=wx.ALIGN_CENTER)
-        self.main_sizer.Add(self.now_playing_label, 0, wx.EXPAND | wx.ALL, 5)
+        self.now_playing_label = wx.StaticText(self.radio_panel, label="التشغيل الحالي: -", style=wx.ALIGN_CENTER)
+        radio_sizer.Add(self.now_playing_label, 0, wx.EXPAND | wx.ALL, 5)
 
         self.CreateStatusBar()
+        self.radio_panel.SetSizer(radio_sizer)
 
-        self.panel.SetSizer(self.main_sizer)
+    def setup_news_ui(self):
+        news_sizer = wx.BoxSizer(wx.VERTICAL)
+        splitter = wx.SplitterWindow(self.news_panel, style=wx.SP_LIVE_UPDATE)
+        news_sizer.Add(splitter, 1, wx.EXPAND | wx.ALL, 5)
+        left_panel = wx.Panel(splitter)
+        left_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.feeds_tree = wx.TreeCtrl(left_panel, style=wx.TR_DEFAULT_STYLE | wx.TR_HAS_BUTTONS | wx.TR_LINES_AT_ROOT)
+        left_sizer.Add(self.feeds_tree, 1, wx.EXPAND | wx.ALL, 5)
+        refresh_button = wx.Button(left_panel, label="تحديث الخلاصات")
+        left_sizer.Add(refresh_button, 0, wx.EXPAND | wx.ALL, 5)
+        left_panel.SetSizer(left_sizer)
+        right_panel = wx.Panel(splitter)
+        right_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        right_splitter = wx.SplitterWindow(right_panel, style=wx.SP_LIVE_UPDATE)
+        right_sizer.Add(right_splitter, 1, wx.EXPAND)
+
+        # Top-right for articles list
+        top_right_panel = wx.Panel(right_splitter)
+        top_right_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.articles_list = wx.ListCtrl(top_right_panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        self.articles_list.InsertColumn(0, "العنوان", width=350)
+        self.articles_list.InsertColumn(1, "تاريخ النشر", width=150)
+        top_right_sizer.Add(self.articles_list, 1, wx.EXPAND | wx.ALL, 5)
+        top_right_panel.SetSizer(top_right_sizer)
+
+        # Bottom-right for article preview
+        bottom_right_panel = wx.Panel(right_splitter)
+        bottom_right_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.article_preview = wx.html.HtmlWindow(bottom_right_panel)
+        bottom_right_sizer.Add(self.article_preview, 1, wx.EXPAND | wx.ALL, 5)
+        bottom_right_panel.SetSizer(bottom_right_sizer)
+
+        right_splitter.SplitHorizontally(top_right_panel, bottom_right_panel, -200)
+        right_panel.SetSizer(right_sizer)
+        splitter.SplitVertically(left_panel, right_panel, 250)
+        self.news_panel.SetSizer(news_sizer)
+        self.Bind(wx.EVT_BUTTON, self.on_refresh_feeds, refresh_button)
+
 
     def connect_signals(self):
         self.Bind(wx.EVT_BUTTON, self.toggle_play_stop, self.play_stop_button)
@@ -144,6 +200,9 @@ class RadioWindow(wx.Frame):
         self.tree_widget.Bind(wx.EVT_TREE_SEL_CHANGED, self.on_tree_selection_changed)
         self.search_box.Bind(wx.EVT_TEXT, self.filter_stations)
         self.player.connect_error_handler(self.handle_player_error)
+        self.feeds_tree.Bind(wx.EVT_TREE_SEL_CHANGED, self.on_feed_selected)
+        self.articles_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_article_selected_for_preview)
+        self.articles_list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_article_activated)
 
     def on_sleep_timer_selected(self, event):
         selection = self.sleep_timer_choice.GetSelection()
@@ -177,7 +236,6 @@ class RadioWindow(wx.Frame):
             item = self.tree_widget.GetSelection()
             if item.IsOk():
                 station_name = self.tree_widget.GetItemText(item)
-                # Sanitize station name for filename
                 station_name = "".join(x for x in station_name if x.isalnum() or x in " _-").strip()
 
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -424,18 +482,23 @@ class RadioWindow(wx.Frame):
         self.sound_manager.set_enabled(enabled)
 
     def open_settings_dialog(self, event):
-        dialog = SettingsDialog(self.settings, self)
-        if dialog.ShowModal() == wx.ID_OK:
-            new_settings = dialog.get_settings()
-            theme_changed = self.settings.get("theme") != new_settings.get("theme")
-            font_changed = self.settings.get("large_font") != new_settings.get("large_font")
-            self.settings = new_settings
-            save_settings(self.settings)
-            self.apply_theme()
-            self.apply_sound_settings()
-            if theme_changed or font_changed:
-                wx.MessageBox("بعض الإعدادات تتطلب إعادة تشغيل التطبيق لتصبح سارية المفعول.", "الإعدادات", wx.OK | wx.ICON_INFORMATION)
-        dialog.Destroy()
+        with SettingsDialog(self.settings, self) as dialog:
+            # The main settings dialog's OK/Cancel logic is now less important
+            # for the feeds, as they are managed in a separate dialog.
+            # However, we still need to apply other settings if changed.
+            if dialog.ShowModal() == wx.ID_OK:
+                new_settings = dialog.get_settings()
+                theme_changed = self.settings.get("theme") != new_settings.get("theme")
+                font_changed = self.settings.get("large_font") != new_settings.get("large_font")
+                self.settings = new_settings
+                save_settings(self.settings)
+                self.apply_theme()
+                self.apply_sound_settings()
+                if theme_changed or font_changed:
+                    wx.MessageBox("بعض الإعدادات تتطلب إعادة تشغيل التطبيق لتصبح سارية المفعول.", "الإعدادات", wx.OK | wx.ICON_INFORMATION)
+
+        # Always refresh the feeds tree after closing the settings dialog
+        self.on_refresh_feeds(event=None)
 
 
     def show_about_dialog(self, event):
@@ -468,19 +531,29 @@ class RadioWindow(wx.Frame):
         bg_colour = wx.Colour(theme_colors["bg"])
         fg_colour = wx.Colour(theme_colors["text"])
 
-        self.panel.SetBackgroundColour(bg_colour)
-        self.panel.SetForegroundColour(fg_colour)
+        # Apply theme to panels within the notebook
+        self.radio_panel.SetBackgroundColour(bg_colour)
+        self.radio_panel.SetForegroundColour(fg_colour)
+        self.news_panel.SetBackgroundColour(bg_colour)
+        self.news_panel.SetForegroundColour(fg_colour)
 
-        for widget in self.panel.GetChildren():
-            if isinstance(widget, (wx.StaticText, wx.CheckBox, wx.RadioBox, wx.TextCtrl, wx.Choice)):
-                widget.SetBackgroundColour(bg_colour)
-                widget.SetForegroundColour(fg_colour)
-            elif isinstance(widget, wx.Button):
-                # Buttons might need special handling depending on the OS
-                pass
+        # Apply theme to child widgets
+        for panel in [self.radio_panel, self.news_panel]:
+            for widget in panel.GetChildren():
+                if isinstance(widget, (wx.StaticText, wx.CheckBox, wx.RadioBox, wx.TextCtrl, wx.Choice)):
+                    widget.SetBackgroundColour(bg_colour)
+                    widget.SetForegroundColour(fg_colour)
+                elif isinstance(widget, wx.Button):
+                    pass # Buttons might need special handling
 
         self.tree_widget.SetBackgroundColour(bg_colour)
         self.tree_widget.SetForegroundColour(fg_colour)
+
+        if hasattr(self, 'feeds_tree'):
+            self.feeds_tree.SetBackgroundColour(bg_colour)
+            self.feeds_tree.SetForegroundColour(fg_colour)
+            self.articles_list.SetBackgroundColour(bg_colour)
+            self.articles_list.SetForegroundColour(fg_colour)
 
         self.panel.Refresh()
 
@@ -513,6 +586,109 @@ class RadioWindow(wx.Frame):
             logging.error(f"Could not show help dialog: {e}")
             wx.MessageBox(f"لا يمكن عرض ملف المساعدة: {e}", "خطأ", wx.OK | wx.ICON_ERROR)
 
+
+    def populate_feeds_tree(self):
+        self.feeds_tree.DeleteAllItems()
+        root = self.feeds_tree.AddRoot("الخلاصات")
+        categories = self.rss_manager.get_merged_categories()
+        for cat_data in categories:
+            display_name = cat_data["name"]
+            if cat_data.get("source") == "local":
+                display_name += " (محلي)"
+
+            category_node = self.feeds_tree.AppendItem(root, display_name)
+            self.feeds_tree.SetItemData(category_node, {"type": "category"})
+            for feed_url in cat_data["feeds"]:
+                feed_node = self.feeds_tree.AppendItem(category_node, feed_url)
+                self.feeds_tree.SetItemData(feed_node, {"type": "feed", "url": feed_url})
+        self.feeds_tree.ExpandAll()
+        self.news_panel.Layout()
+
+    def on_refresh_feeds(self, event):
+        # Store selection
+        selected_url = None
+        selected_item = self.feeds_tree.GetSelection()
+        if selected_item.IsOk():
+            item_data = self.feeds_tree.GetItemData(selected_item)
+            if item_data and item_data.get("type") == "feed":
+                selected_url = item_data.get("url")
+
+        # Rebuild
+        self.rss_manager = RSSManager()
+        self.populate_feeds_tree()
+        self.articles_list.DeleteAllItems()
+        self.GetStatusBar().SetStatusText("تم تحديث قائمة الخلاصات.")
+
+        # Restore selection
+        if selected_url:
+            root = self.feeds_tree.GetRootItem()
+            (category_node, cookie) = self.feeds_tree.GetFirstChild(root)
+            while category_node.IsOk():
+                (feed_node, cookie2) = self.feeds_tree.GetFirstChild(category_node)
+                while feed_node.IsOk():
+                    node_data = self.feeds_tree.GetItemData(feed_node)
+                    if node_data and node_data.get("url") == selected_url:
+                        self.feeds_tree.SelectItem(feed_node)
+                        self.feeds_tree.EnsureVisible(feed_node)
+                        return
+                    (feed_node, cookie2) = self.feeds_tree.GetNextChild(category_node, cookie2)
+                (category_node, cookie) = self.feeds_tree.GetNextChild(root, cookie)
+
+    def on_feed_selected(self, event):
+        item = event.GetItem()
+        if not item.IsOk(): return
+        item_data = self.feeds_tree.GetItemData(item)
+        if item_data and item_data.get("type") == "feed":
+            feed_url = item_data.get("url")
+            self.GetStatusBar().SetStatusText(f"جاري تحميل المقالات من {feed_url}...")
+            self.articles_list.DeleteAllItems()
+            loader = ArticleLoader(feed_url, self)
+            loader.start()
+
+    def on_articles_fetched(self, articles):
+        self.articles = articles
+        self.articles_list.DeleteAllItems()
+        for i, article in enumerate(articles):
+            title = article["title"]
+            is_read = self.rss_manager.is_article_read(article["link"])
+            if is_read:
+                title = f"(مقروء) {title}"
+
+            self.articles_list.InsertItem(i, title)
+            self.articles_list.SetItem(i, 1, article["published"])
+            self.articles_list.SetItemData(i, i)
+
+            if is_read:
+                self.articles_list.SetItemTextColour(i, wx.Colour(128, 128, 128)) # Gray
+
+        self.GetStatusBar().SetStatusText(f"تم تحميل {len(articles)} مقالة.")
+        self.articles_list.Update()
+        self.news_panel.Layout()
+
+    def on_articles_fetch_error(self, feed_url):
+        self.GetStatusBar().SetStatusText(f"فشل تحميل المقالات من {feed_url}.")
+
+    def on_article_selected_for_preview(self, event):
+        item_index = event.GetIndex()
+        if 0 <= item_index < len(self.articles):
+            article = self.articles[item_index]
+            summary = article.get("summary", "لا يوجد ملخص متاح.")
+            self.article_preview.SetPage(summary)
+
+    def on_article_activated(self, event):
+        item_index = event.GetData()
+        if 0 <= item_index < len(self.articles):
+            article = self.articles[item_index]
+            article_link = article.get("link")
+
+            if article_link:
+                if not self.rss_manager.is_article_read(article_link):
+                    self.rss_manager.mark_article_as_read(article_link)
+                    current_text = self.articles_list.GetItemText(item_index)
+                    self.articles_list.SetItemText(item_index, f"(مقروء) {current_text}")
+                    self.articles_list.SetItemTextColour(item_index, wx.Colour(128, 128, 128)) # Gray
+
+                webbrowser.open(article_link)
 
     def on_close(self, event):
         save_settings(self.settings)

@@ -15,6 +15,7 @@ def load_settings():
         "large_font": False,
         "volume": 40,
         "last_station_name": None,
+        "enable_rss_reader": False,
     }
     if not os.path.exists(path):
         return defaults
