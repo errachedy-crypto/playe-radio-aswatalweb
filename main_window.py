@@ -166,23 +166,15 @@ class RadioWindow(wx.Frame):
         right_splitter = wx.SplitterWindow(right_panel, style=wx.SP_LIVE_UPDATE)
         right_sizer.Add(right_splitter, 1, wx.EXPAND)
 
-        # Top-right for articles list
-        top_right_panel = wx.Panel(right_splitter)
-        top_right_sizer = wx.BoxSizer(wx.VERTICAL)
-        self.articles_list = wx.ListCtrl(top_right_panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        # Widgets for the right splitter
+        self.articles_list = wx.ListCtrl(right_splitter, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
         self.articles_list.InsertColumn(0, "العنوان", width=350)
         self.articles_list.InsertColumn(1, "تاريخ النشر", width=150)
-        top_right_sizer.Add(self.articles_list, 1, wx.EXPAND | wx.ALL, 5)
-        top_right_panel.SetSizer(top_right_sizer)
 
-        # Bottom-right for article preview
-        bottom_right_panel = wx.Panel(right_splitter)
-        bottom_right_sizer = wx.BoxSizer(wx.VERTICAL)
-        self.article_preview = wx.html.HtmlWindow(bottom_right_panel)
-        bottom_right_sizer.Add(self.article_preview, 1, wx.EXPAND | wx.ALL, 5)
-        bottom_right_panel.SetSizer(bottom_right_sizer)
+        self.article_preview = wx.html.HtmlWindow(right_splitter)
 
-        right_splitter.SplitHorizontally(top_right_panel, bottom_right_panel, -200)
+        right_splitter.SplitHorizontally(self.articles_list, self.article_preview, -200)
+
         right_panel.SetSizer(right_sizer)
         splitter.SplitVertically(left_panel, right_panel, 250)
         self.news_panel.SetSizer(news_sizer)
