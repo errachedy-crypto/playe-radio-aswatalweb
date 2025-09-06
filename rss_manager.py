@@ -7,11 +7,13 @@ import configparser
 
 LOCAL_FEEDS_FILE = os.path.join(os.path.expanduser("~"), "stv_radio_custom_feeds.json")
 REMOTE_FEEDS_CACHE_FILE = os.path.join(os.path.expanduser("~"), "stv_radio_remote_feeds_cache.json")
+READ_ARTICLES_FILE = os.path.join(os.path.expanduser("~"), "stv_radio_read_articles.json")
 REMOTE_FEEDS_URL = "https://aswatalweb.com/radio/liverss/DefaultListRSS.Ini"
 
 class RSSManager:
     def __init__(self):
         self._local_categories = self._load_local_categories()
+        self._read_articles = self._load_read_articles()
 
     def get_merged_categories(self):
         """
@@ -179,3 +181,35 @@ class RSSManager:
         except Exception as e:
             print(f"Error fetching feed '{feed_url}': {e}")
             return None
+
+    # --- Read/Unread Status Methods ---
+
+    def _load_read_articles(self):
+        """Loads the set of read article identifiers from a JSON file."""
+        if not os.path.exists(READ_ARTICLES_FILE):
+            return set()
+        try:
+            with open(READ_ARTICLES_FILE, "r", encoding="utf-8") as f:
+                # Load as list and convert to set for efficient lookups
+                return set(json.load(f))
+        except (IOError, json.JSONDecodeError):
+            return set()
+
+    def _save_read_articles(self):
+        """Saves the set of read article identifiers."""
+        try:
+            with open(READ_ARTICLES_FILE, "w", encoding="utf-8") as f:
+                # Convert set to list for JSON serialization
+                json.dump(list(self._read_articles), f, indent=4)
+        except IOError:
+            pass
+
+    def is_article_read(self, article_link):
+        """Checks if an article is in the read list."""
+        return article_link in self._read_articles
+
+    def mark_article_as_read(self, article_link):
+        """Adds an article's link to the read list and saves it."""
+        if article_link not in self._read_articles:
+            self._read_articles.add(article_link)
+            self._save_read_articles()

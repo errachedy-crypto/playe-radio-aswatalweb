@@ -630,7 +630,10 @@ class RadioWindow(wx.Frame):
         self.articles = articles
         self.articles_list.DeleteAllItems()
         for i, article in enumerate(articles):
-            self.articles_list.InsertItem(i, article["title"])
+            title = article["title"]
+            if self.rss_manager.is_article_read(article["link"]):
+                title = f"(مقروء) {title}"
+            self.articles_list.InsertItem(i, title)
             self.articles_list.SetItem(i, 1, article["published"])
             self.articles_list.SetItemData(i, i)
         self.GetStatusBar().SetStatusText(f"تم تحميل {len(articles)} مقالة.")
@@ -643,8 +646,15 @@ class RadioWindow(wx.Frame):
     def on_article_activated(self, event):
         item_index = event.GetData()
         if 0 <= item_index < len(self.articles):
-            article_link = self.articles[item_index].get("link")
+            article = self.articles[item_index]
+            article_link = article.get("link")
+
             if article_link:
+                if not self.rss_manager.is_article_read(article_link):
+                    self.rss_manager.mark_article_as_read(article_link)
+                    current_text = self.articles_list.GetItemText(item_index)
+                    self.articles_list.SetItemText(item_index, f"(مقروء) {current_text}")
+
                 webbrowser.open(article_link)
 
     def on_close(self, event):
