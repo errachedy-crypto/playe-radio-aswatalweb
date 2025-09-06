@@ -631,11 +631,17 @@ class RadioWindow(wx.Frame):
         self.articles_list.DeleteAllItems()
         for i, article in enumerate(articles):
             title = article["title"]
-            if self.rss_manager.is_article_read(article["link"]):
+            is_read = self.rss_manager.is_article_read(article["link"])
+            if is_read:
                 title = f"(مقروء) {title}"
+
             self.articles_list.InsertItem(i, title)
             self.articles_list.SetItem(i, 1, article["published"])
             self.articles_list.SetItemData(i, i)
+
+            if is_read:
+                self.articles_list.SetItemTextColour(i, wx.Colour(128, 128, 128)) # Gray
+
         self.GetStatusBar().SetStatusText(f"تم تحميل {len(articles)} مقالة.")
         self.articles_list.Update()
         self.news_panel.Layout()
@@ -654,6 +660,7 @@ class RadioWindow(wx.Frame):
                     self.rss_manager.mark_article_as_read(article_link)
                     current_text = self.articles_list.GetItemText(item_index)
                     self.articles_list.SetItemText(item_index, f"(مقروء) {current_text}")
+                    self.articles_list.SetItemTextColour(item_index, wx.Colour(128, 128, 128)) # Gray
 
                 webbrowser.open(article_link)
 
